@@ -42,10 +42,20 @@ export default function MCDashboardPage() {
   const [judgingSuggestion, setJudgingSuggestion] = useState<"exact" | "near" | "no_match" | null>(null);
   const [isSwitchingRound, setIsSwitchingRound] = useState(false);
   const [isLoadingPackages, setIsLoadingPackages] = useState(false);
+  const [isLoadingState, setIsLoadingState] = useState(true);
   const { confirm } = useConfirm();
 
   useHydrateGameState();
   usePusherGameState();
+
+  // Track when state has been loaded (even if it's null)
+  useEffect(() => {
+    // State is considered loaded if it's not undefined
+    // null means no game state exists, which is valid
+    if (state !== undefined) {
+      setIsLoadingState(false);
+    }
+  }, [state]);
 
   useEffect(() => {
     async function checkAuth() {
@@ -187,7 +197,7 @@ export default function MCDashboardPage() {
         setSelectedRound(state.round as Round);
         setUserClearedRound(false); // Reset flag when round is set
       }
-    } else if (!isGameActive && !state?.round && selectedRound !== null) {
+    } else if (!isGameActive && !state?.round && selectedRound !== null && state) {
       // Only clear selectedRound when game is not active AND no round is set in state
       // This allows showing round selection screen when truly idle
       setSelectedRound(null);
@@ -199,19 +209,19 @@ export default function MCDashboardPage() {
   useEffect(() => {
     if (!state) return;
     
-    if (state.activeTeamId) {
+    if (state?.activeTeamId) {
       setSelectedTeamId(state.activeTeamId);
     }
     
-    if (state.activePackageId) {
+    if (state?.activePackageId) {
       setSelectedPackageId(state.activePackageId);
     }
     
     if (
-      state.phase === "IDLE" &&
-      !state.currentQuestionId &&
-      !state.activeTeamId &&
-      !state.activePackageId
+      state?.phase === "IDLE" &&
+      !state?.currentQuestionId &&
+      !state?.activeTeamId &&
+      !state?.activePackageId
     ) {
       setSelectedTeamId("");
       setSelectedPackageId("");
@@ -345,9 +355,10 @@ export default function MCDashboardPage() {
   }
 
   async function judgeQuestion(result: "CORRECT" | "WRONG", teamId?: string) {
-    if (!state?.currentQuestionId && state?.round !== "ROUND2") return;
+    if (!state) return;
+    if (!state.currentQuestionId && state.round !== "ROUND2") return;
 
-    if (state?.round === "ROUND2") {
+    if (state.round === "ROUND2") {
       const targetTeamId = teamId || selectedTeamIdForJudging;
       if (!targetTeamId) {
         alert("Vui lòng chọn đội để chấm");
@@ -368,11 +379,13 @@ export default function MCDashboardPage() {
         // Modal will only close when pendingAnswers becomes empty (handled by useEffect)
       }
     } else {
-      await fetch("/api/game-control/question/judge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questionId: state.currentQuestionId, result }),
-      });
+      if (state.currentQuestionId) {
+        await fetch("/api/game-control/question/judge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ questionId: state.currentQuestionId, result }),
+        });
+      }
     }
   }
 
@@ -443,21 +456,27 @@ export default function MCDashboardPage() {
     });
   }
 
-  if (!state) {
+  // Show loading only while state is being fetched (undefined)
+  // null state means no game exists, which is fine - show round selection
+  if (isLoadingState || state === undefined) {
     return <div className="p-8 text-white">Đang tải...</div>;
   }
 
   // Show round selection when game is IDLE or no game is active, or when user manually cleared
+  // Also show when state is null (no game state exists in database)
   const isGameActive = state?.phase && state.phase !== "IDLE" || 
                       state?.currentQuestionId || 
                       state?.activeTeamId || 
                       state?.activePackageId;
   
-  const showRoundSelection = userClearedRound || (!isGameActive && (!selectedRound && !state?.round));
+  const showRoundSelection = userClearedRound || 
+                             !state || // No game state exists
+                             (!isGameActive && (!selectedRound && !state?.round));
   const showTeamPackageSelection = !userClearedRound && (isGameActive || !!selectedRound || !!state?.round);
-  const isRound2 = state.round === "ROUND2" || selectedRound === "ROUND2";
+  const isRound2 = state?.round === "ROUND2" || selectedRound === "ROUND2";
 
   const availableTeams = teams.filter((team) => {
+    if (!state?.teams) return true;
     const teamInState = state.teams.find(
       (t) => t.teamId.toString() === team._id.toString()
     );
@@ -473,16 +492,16 @@ export default function MCDashboardPage() {
   };
 
   const timerExpired =
-    state.questionTimer &&
+    state?.questionTimer &&
     state.questionTimer.running &&
     Date.now() > state.questionTimer.endsAt;
 
   // Round2 specific data
   const round2Meta = packageData?.round2Meta;
-  const currentTeamName = state.teams.find((t) => t.teamId === state.activeTeamId)?.nameSnapshot;
+  const currentTeamName = state?.teams?.find((t) => t.teamId === state?.activeTeamId)?.nameSnapshot;
   const eliminatedTeamIds = round2Meta?.eliminatedTeamIds || [];
   const teamsUsedAttempt = round2Meta?.turnState?.teamsUsedHorizontalAttempt || {};
-  const currentTeamId = round2Meta?.turnState?.currentTeamId || state.activeTeamId;
+  const currentTeamId = round2Meta?.turnState?.currentTeamId || state?.activeTeamId;
 
   return (
     <div className="p-8 text-white">
@@ -490,7 +509,7 @@ export default function MCDashboardPage() {
         <h1 className="text-3xl font-bold">
           MC Dashboard{selectedRound ? ` - ${ROUNDS.find(r => r.value === selectedRound)?.label || selectedRound}` : ""}
         </h1>
-        {(state.phase !== "IDLE" || state.currentQuestionId || state.activeTeamId || state.activePackageId) && (
+        {(state && (state.phase !== "IDLE" || state.currentQuestionId || state.activeTeamId || state.activePackageId)) && (
           <button
             onClick={resetGame}
             className="px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-lg font-semibold shadow-md transition-all"
@@ -580,7 +599,7 @@ export default function MCDashboardPage() {
               <h2 className="text-xl font-bold mb-4">Chọn đội</h2>
               <Select
                 options={availableTeams.map((team) => {
-                  const teamInState = state.teams.find(
+                  const teamInState = state?.teams?.find(
                     (t) => t.teamId.toString() === team._id.toString()
                   );
                   const label =
@@ -700,7 +719,7 @@ export default function MCDashboardPage() {
       </AnimatePresence>
 
       {/* Round2 Control Panel */}
-      {isRound2 && (state.phase !== "IDLE" || selectedRound === "ROUND2") && (
+      {isRound2 && (state?.phase !== "IDLE" || selectedRound === "ROUND2") && (
         <div className="space-y-4 mb-6">
           {/* Keyword Buzz Queue - Show prominently at top */}
           {(() => {
@@ -725,7 +744,7 @@ export default function MCDashboardPage() {
                     .map((item: { teamId: string; buzzedAt: number }, index: number) => {
                       const team = teams.find(t => t._id.toString() === item.teamId);
                       const currentIndex = round2Meta.buzzState?.currentKeywordBuzzIndex;
-                      const isCurrentJudging = currentIndex === index && state.phase === "KEYWORD_BUZZ_JUDGING";
+                      const isCurrentJudging = currentIndex === index && state?.phase === "KEYWORD_BUZZ_JUDGING";
                       
                       // Xác định đội đã được chấm:
                       // 1. Nếu index < currentIndex: đội đã được chấm (trong quá trình judging)
@@ -740,11 +759,11 @@ export default function MCDashboardPage() {
                         (currentIndex !== undefined && index < currentIndex) ||
                         isEliminated ||
                         isWinner ||
-                        (state.phase === "ROUND_END" && keywordWinnerTeamId);
+                        (state?.phase === "ROUND_END" && keywordWinnerTeamId);
                       
                       const buzzedDate = new Date(item.buzzedAt);
                       const timeStr = `${String(buzzedDate.getHours()).padStart(2, '0')}:${String(buzzedDate.getMinutes()).padStart(2, '0')}:${String(buzzedDate.getSeconds()).padStart(2, '0')}`;
-                      const canStartJudging = state.phase !== "KEYWORD_BUZZ_JUDGING" && state.phase !== "ROUND_END" && index === 0 && !isJudged;
+                      const canStartJudging = state?.phase !== "KEYWORD_BUZZ_JUDGING" && state?.phase !== "ROUND_END" && index === 0 && !isJudged;
                       
                       return (
                         <motion.div
@@ -825,7 +844,7 @@ export default function MCDashboardPage() {
                       );
                     })}
                 </div>
-                {state.phase === "KEYWORD_BUZZ_JUDGING" && round2Meta.buzzState.currentKeywordBuzzIndex !== undefined && (
+                {state?.phase === "KEYWORD_BUZZ_JUDGING" && round2Meta.buzzState.currentKeywordBuzzIndex !== undefined && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -950,7 +969,7 @@ export default function MCDashboardPage() {
             </div>
             
             {/* Current Turn */}
-            {state.phase === "TURN_SELECT" && (
+            {state?.phase === "TURN_SELECT" && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -965,8 +984,8 @@ export default function MCDashboardPage() {
                       <p className="text-lg font-semibold text-white">Chọn đội:</p>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {state.teams
-                        .filter((t) => !eliminatedTeamIds.includes(t.teamId))
+                      {state?.teams
+                        ?.filter((t) => !eliminatedTeamIds.includes(t.teamId))
                         .map((team, index) => (
                           <motion.button
                             key={team.teamId}
@@ -1136,7 +1155,7 @@ export default function MCDashboardPage() {
                       transition={{ delay: index * 0.1 }}
                       className="px-3 py-1.5 bg-gradient-to-r from-red-900/60 to-rose-900/60 rounded-lg text-red-300 font-medium border border-red-500/30 shadow-md"
                     >
-                      {state.teams.find(t => t.teamId === teamId)?.nameSnapshot}
+                      {state?.teams?.find(t => t.teamId === teamId)?.nameSnapshot}
                     </motion.span>
                   ))}
                 </div>
@@ -1149,11 +1168,11 @@ export default function MCDashboardPage() {
       )}
 
       {/* Question Display & Judging (Round1 style) */}
-      {state.currentQuestionId && state.round === "ROUND1" && (
+      {state?.currentQuestionId && state?.round === "ROUND1" && (
         <div className="space-y-4 mb-6">
           <Card>
             <div className="mb-4 flex justify-end">
-              <Timer timer={state.questionTimer} size="sm" />
+              <Timer timer={state?.questionTimer} size="sm" />
             </div>
             {timerExpired && (
               <p className="text-yellow-500 mb-4 text-center">
@@ -1166,7 +1185,7 @@ export default function MCDashboardPage() {
               questionNumber={question?.index}
               totalQuestions={12}
               packageNumber={
-                packages.find((p) => p._id.toString() === state.activePackageId)?.number
+                packages.find((p) => p._id.toString() === state?.activePackageId)?.number
               }
             />
 
@@ -1289,7 +1308,7 @@ export default function MCDashboardPage() {
 
       <Card>
         <h2 className="text-xl font-bold mb-4">Bảng điểm</h2>
-        <Scoreboard teams={state.teams} activeTeamId={state.activeTeamId?.toString()} />
+        <Scoreboard teams={state?.teams || []} activeTeamId={state?.activeTeamId?.toString()} />
       </Card>
 
       <ConfirmModal />
