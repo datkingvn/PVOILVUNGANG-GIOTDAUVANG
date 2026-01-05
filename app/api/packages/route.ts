@@ -26,12 +26,17 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  let number: number | undefined;
+  let round: string | undefined;
+  
   try {
     await requireMC();
     await connectDB();
 
     const body = await request.json();
-    const { number, round } = createPackageSchema.parse(body);
+    const parsed = createPackageSchema.parse(body);
+    number = parsed.number;
+    round = parsed.round;
 
     // Check if package already exists
     const existing = await Package.findOne({ round, number });
@@ -61,7 +66,7 @@ export async function POST(request: NextRequest) {
     }
     if (error.code === 11000) {
       return NextResponse.json(
-        { error: `Gói ${number} đã tồn tại trong vòng ${round}` },
+        { error: `Gói ${number ?? 'N/A'} đã tồn tại trong vòng ${round ?? 'N/A'}` },
         { status: 400 }
       );
     }

@@ -15,7 +15,14 @@ export async function GET() {
       return NextResponse.json({ state: null });
     }
 
-    return NextResponse.json({ state: gameState.toObject() });
+    const stateObj = gameState.toObject({ flattenMaps: true });
+    
+    // Ensure pendingAnswers is a plain array
+    if (stateObj.round2State?.pendingAnswers) {
+      stateObj.round2State.pendingAnswers = JSON.parse(JSON.stringify(stateObj.round2State.pendingAnswers));
+    }
+
+    return NextResponse.json({ state: stateObj });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "Lỗi server" },

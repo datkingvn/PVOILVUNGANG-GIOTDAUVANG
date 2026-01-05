@@ -1,5 +1,5 @@
 import mongoose, { Schema } from "mongoose";
-import type { Round, Phase, QuestionTimer, TeamScore } from "@/types/game";
+import type { Round, Phase, QuestionTimer, TeamScore, Round2State, PendingAnswer } from "@/types/game";
 
 export interface IGameState extends mongoose.Document {
   round: Round;
@@ -9,6 +9,7 @@ export interface IGameState extends mongoose.Document {
   currentQuestionId?: string;
   questionTimer?: QuestionTimer;
   teams: TeamScore[];
+  round2State?: Round2State;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,6 +37,26 @@ const TeamScoreSchema = new Schema<TeamScore>(
   { _id: false }
 );
 
+const PendingAnswerSchema = new Schema(
+  {
+    teamId: { type: String, required: true },
+    answer: { type: String, required: true },
+    submittedAt: { type: Number, required: true },
+  },
+  { _id: false }
+);
+
+const Round2StateSchema = new Schema(
+  {
+    currentHorizontalOrder: { type: Number },
+    pendingAnswers: [PendingAnswerSchema],
+    // Keep old fields for backward compatibility (can be removed later)
+    pendingAnswer: { type: String },
+    pendingTeamId: { type: String },
+  },
+  { _id: false, strict: false }
+);
+
 const GameStateSchema = new Schema<IGameState>(
   {
     round: {
@@ -56,6 +77,18 @@ const GameStateSchema = new Schema<IGameState>(
         "REVEAL",
         "TRANSITION",
         "ROUND_END",
+        // Round 2 phases
+        "SETUP",
+        "TURN_SELECT",
+        "HORIZONTAL_ACTIVE",
+        "HORIZONTAL_JUDGING",
+        "REVEAL_PIECE",
+        "CNV_LOCKED",
+        "CNV_ACTIVE",
+        "CNV_JUDGING",
+        "FINAL_PIECE_REVEAL",
+        "CENTER_HINT_ACTIVE",
+        "KEYWORD_BUZZ_JUDGING",
       ],
       default: "IDLE",
     },
@@ -64,6 +97,7 @@ const GameStateSchema = new Schema<IGameState>(
     currentQuestionId: { type: String },
     questionTimer: QuestionTimerSchema,
     teams: [TeamScoreSchema],
+    round2State: Round2StateSchema,
   },
   { timestamps: true }
 );

@@ -1,27 +1,47 @@
 import * as fs from "fs";
 import * as path from "path";
-import connectDB from "../lib/db/connection";
-import User from "../lib/db/models/User";
-import Package from "../lib/db/models/Package";
-import Question from "../lib/db/models/Question";
-import bcrypt from "bcryptjs";
 
-// Manually load .env file
-const envPath = path.join(process.cwd(), ".env.local");
-if (fs.existsSync(envPath)) {
-  const envContent = fs.readFileSync(envPath, "utf-8");
-  envContent.split("\n").forEach((line) => {
-    const [key, ...valueParts] = line.split("=");
-    if (key && valueParts.length > 0) {
-      const value = valueParts.join("=").trim();
-      if (value && !value.startsWith("#")) {
-        process.env[key.trim()] = value.replace(/^["']|["']$/g, "");
+// Manually load .env file FIRST (before importing anything that needs env vars)
+// Try .env.local first, then .env
+const envPaths = [
+  path.join(process.cwd(), ".env.local"),
+  path.join(process.cwd(), ".env"),
+];
+
+for (const envPath of envPaths) {
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, "utf-8");
+    envContent.split("\n").forEach((line) => {
+      const trimmedLine = line.trim();
+      if (!trimmedLine || trimmedLine.startsWith("#")) return;
+      const [key, ...valueParts] = trimmedLine.split("=");
+      if (key && valueParts.length > 0) {
+        const value = valueParts.join("=").trim();
+        if (value) {
+          process.env[key.trim()] = value.replace(/^["']|["']$/g, "");
+        }
       }
-    }
-  });
+    });
+    console.log(`✅ Loaded environment variables from ${path.basename(envPath)}`);
+    break; // Stop after loading first found file
+  }
+}
+
+// Verify MONGODB_URI is loaded
+if (!process.env.MONGODB_URI) {
+  console.error("❌ MONGODB_URI not found in environment variables");
+  console.error("Please ensure .env or .env.local file exists with MONGODB_URI");
+  process.exit(1);
 }
 
 async function seed() {
+  // Use dynamic imports AFTER loading env vars
+  const { default: connectDB } = await import("../lib/db/connection");
+  const { default: User } = await import("../lib/db/models/User");
+  const { default: Package } = await import("../lib/db/models/Package");
+  const { default: Question } = await import("../lib/db/models/Question");
+  const bcrypt = await import("bcryptjs");
+  
   try {
     await connectDB();
 

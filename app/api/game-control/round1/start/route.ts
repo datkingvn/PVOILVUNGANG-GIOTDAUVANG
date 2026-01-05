@@ -4,6 +4,7 @@ import GameState from "@/lib/db/models/GameState";
 import Team from "@/lib/db/models/Team";
 import { requireMC } from "@/lib/auth/middleware";
 import { broadcastGameState } from "@/lib/pusher/server";
+import type { TeamScore } from "@/types/game";
 
 export async function POST() {
   try {
@@ -25,7 +26,7 @@ export async function POST() {
     // Synchronize teams with Team model
     const allTeams = await Team.find();
     const existingTeamIds = new Set(
-      gameState.teams.map((t) => t.teamId.toString())
+      gameState.teams.map((t: TeamScore) => t.teamId.toString())
     );
 
     // Add new teams
@@ -41,7 +42,7 @@ export async function POST() {
       } else {
         // Update nameSnapshot for existing teams
         const existingTeam = gameState.teams.find(
-          (t) => t.teamId.toString() === teamIdStr
+          (t: TeamScore) => t.teamId.toString() === teamIdStr
         );
         if (existingTeam) {
           existingTeam.nameSnapshot = dbTeam.name;
@@ -50,7 +51,7 @@ export async function POST() {
     }
 
     // Remove teams that no longer exist in DB
-    gameState.teams = gameState.teams.filter((t) =>
+    gameState.teams = gameState.teams.filter((t: TeamScore) =>
       allTeams.some((dbTeam) => dbTeam._id.toString() === t.teamId.toString())
     );
 

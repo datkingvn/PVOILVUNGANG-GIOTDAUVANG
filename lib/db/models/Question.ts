@@ -6,6 +6,9 @@ export interface IQuestion extends mongoose.Document {
   packageId: mongoose.Types.ObjectId;
   index: number;
   round: Round;
+  answerText?: string;
+  acceptedAnswers?: string[];
+  type?: "horizontal" | "centerHint";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -16,6 +19,9 @@ const QuestionSchema = new Schema<IQuestion>(
     packageId: { type: Schema.Types.ObjectId, ref: "Package", required: true },
     index: { type: Number, required: true },
     round: { type: String, required: true, enum: ["ROUND1", "ROUND2", "ROUND3", "ROUND4"] },
+    answerText: { type: String },
+    acceptedAnswers: [{ type: String }],
+    type: { type: String, enum: ["horizontal", "centerHint"] },
   },
   { timestamps: true }
 );

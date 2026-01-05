@@ -35,13 +35,15 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ questionId: string }> }
 ) {
+  let data: { index?: number; text?: string } | undefined;
+  
   try {
     await requireMC();
     await connectDB();
 
     const { questionId } = await params;
     const body = await request.json();
-    const data = updateQuestionSchema.parse(body);
+    data = updateQuestionSchema.parse(body);
 
     const question = await Question.findById(questionId);
     if (!question) {
@@ -81,7 +83,7 @@ export async function PATCH(
       );
     }
     if (error.code === 11000) {
-      const index = data?.index || "này";
+      const index = data?.index ?? "này";
       return NextResponse.json(
         { error: `Câu hỏi số ${index} đã tồn tại trong gói này` },
         { status: 400 }

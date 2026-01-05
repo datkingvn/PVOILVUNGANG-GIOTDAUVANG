@@ -1,7 +1,7 @@
 import GameState from "@/lib/db/models/GameState";
 import Package from "@/lib/db/models/Package";
 import Question from "@/lib/db/models/Question";
-import type { QuestionResult } from "@/types/game";
+import type { QuestionResult, PackageHistory, TeamScore } from "@/types/game";
 
 /**
  * Reconcile game state: auto-finalize timeout questions
@@ -31,7 +31,7 @@ export async function reconcileGameState() {
 
         // Find questions that haven't been answered yet
         const answeredIndices = new Set(
-          pkg.history.map((h) => h.index)
+          pkg.history.map((h: PackageHistory) => h.index)
         );
         const unansweredQuestions = allQuestions.filter(
           (q) => !answeredIndices.has(q.index)
@@ -55,7 +55,7 @@ export async function reconcileGameState() {
         // Mark active team as finished
         if (gameState.activeTeamId) {
           const teamIndex = gameState.teams.findIndex(
-            (t) => t.teamId === gameState.activeTeamId
+            (t: TeamScore) => t.teamId === gameState.activeTeamId
           );
           if (teamIndex !== -1) {
             gameState.teams[teamIndex].status = "finished";
@@ -107,7 +107,7 @@ export async function finalizeQuestion(
 
   // Check if question is already answered
   const existingHistory = pkg.history.find(
-    (h) => h.questionId === questionId
+    (h: PackageHistory) => h.questionId === questionId
   );
 
   // If already answered as TIMEOUT, allow overriding
@@ -132,7 +132,7 @@ export async function finalizeQuestion(
   // Update score
   if (result === "CORRECT") {
     const teamIndex = gameState.teams.findIndex(
-      (t) => t.teamId === gameState.activeTeamId
+      (t: TeamScore) => t.teamId === gameState.activeTeamId
     );
     if (teamIndex !== -1) {
       gameState.teams[teamIndex].score += 10;
@@ -152,7 +152,7 @@ export async function finalizeQuestion(
       packageId: gameState.activePackageId,
     }).sort({ index: 1 });
 
-    const answeredIndices = new Set(pkg.history.map((h) => h.index));
+    const answeredIndices = new Set(pkg.history.map((h: PackageHistory) => h.index));
     const unansweredQuestions = allQuestions.filter(
       (q) => !answeredIndices.has(q.index)
     );
@@ -172,15 +172,18 @@ export async function finalizeQuestion(
     // Mark team as finished
     if (gameState.activeTeamId) {
       const teamIndex = gameState.teams.findIndex(
-        (t) => t.teamId === gameState.activeTeamId
+        (t: TeamScore) => t.teamId === gameState.activeTeamId
       );
       if (teamIndex !== -1) {
         gameState.teams[teamIndex].status = "finished";
       }
     }
 
+    // Clear active team and package to require selecting new team for next package
     gameState.currentQuestionId = undefined;
     gameState.questionTimer = undefined;
+    gameState.activeTeamId = undefined;
+    gameState.activePackageId = undefined;
     gameState.phase = "IDLE";
   } else {
     // Move to next question
@@ -208,12 +211,16 @@ export async function finalizeQuestion(
       // Mark team as finished
       if (gameState.activeTeamId) {
         const teamIndex = gameState.teams.findIndex(
-          (t) => t.teamId === gameState.activeTeamId
+          (t: TeamScore) => t.teamId === gameState.activeTeamId
         );
         if (teamIndex !== -1) {
           gameState.teams[teamIndex].status = "finished";
         }
       }
+
+      // Clear active team and package to require selecting new team for next package
+      gameState.activeTeamId = undefined;
+      gameState.activePackageId = undefined;
     }
   }
 

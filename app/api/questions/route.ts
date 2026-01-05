@@ -29,12 +29,16 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  let index: number | undefined;
+  
   try {
     await requireMC();
     await connectDB();
 
     const body = await request.json();
-    const { text, packageId, index, round } = createQuestionSchema.parse(body);
+    const parsed = createQuestionSchema.parse(body);
+    const { text, packageId, round } = parsed;
+    index = parsed.index;
 
     // Verify package exists and round matches
     const pkg = await Package.findById(packageId);
@@ -82,7 +86,7 @@ export async function POST(request: NextRequest) {
     }
     if (error.code === 11000) {
       return NextResponse.json(
-        { error: `Câu hỏi số ${index} đã tồn tại trong gói này` },
+        { error: `Câu hỏi số ${index ?? "này"} đã tồn tại trong gói này` },
         { status: 400 }
       );
     }

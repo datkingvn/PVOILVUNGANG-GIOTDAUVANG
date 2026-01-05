@@ -13,7 +13,9 @@ export async function GET(request: NextRequest) {
     if (round) query.round = round;
 
     const packages = await Package.find(query).sort({ number: 1 });
-    return NextResponse.json(packages);
+    // Convert to plain objects and ensure revealedPieces Map is properly serialized
+    const packagesObj = packages.map(pkg => pkg.toObject({ flattenMaps: true }));
+    return NextResponse.json(packagesObj);
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "Lỗi server" },
