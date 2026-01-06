@@ -58,5 +58,13 @@ export function generateImageKey(packageId: string, suffix: string): string {
   return `round2/${packageId}/${timestamp}-${suffix}`;
 }
 
+/**
+ * Generate a unique key for a video file
+ */
+export function generateVideoKey(questionId: string, extension: string): string {
+  const timestamp = Date.now();
+  return `round3/questions/${questionId}/${timestamp}-video.${extension}`;
+}
+
 export default r2Client;
 

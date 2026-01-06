@@ -21,7 +21,7 @@ type Round = "ROUND1" | "ROUND2" | "ROUND3" | "ROUND4";
 const ROUNDS: { value: Round; label: string }[] = [
   { value: "ROUND1", label: "Vòng 1" },
   { value: "ROUND2", label: "Vòng 2" },
-  // { value: "ROUND3", label: "Vòng 3" },
+  { value: "ROUND3", label: "Vòng 3" },
   // { value: "ROUND4", label: "Vòng 4" },
 ];
 
@@ -326,6 +326,9 @@ export default function MCDashboardPage() {
       }
       // If package has round2Meta, just select it (no API call needed for preview)
       // The package will be activated when starting the game
+    } else if (state?.round === "ROUND3" || selectedRound === "ROUND3") {
+      // For Round3, navigate to management page
+      router.push(`/mc/round3/${packageId}`);
     }
   }
 
@@ -416,6 +419,10 @@ export default function MCDashboardPage() {
         });
       } else if (round === "ROUND2") {
         await fetch("/api/game-control/round2/start-round", {
+          method: "POST",
+        });
+      } else if (round === "ROUND3") {
+        await fetch("/api/game-control/round3/start-round", {
           method: "POST",
         });
       }
@@ -634,8 +641,14 @@ export default function MCDashboardPage() {
                 const isCompleted = pkg.status === "completed";
                 const isSelected = pkg._id.toString() === selectedPackageId;
                 const assignedTeamName = getAssignedTeamName(pkg);
-                const needsSetup = (state?.round === "ROUND2" || selectedRound === "ROUND2") && !pkg.round2Meta;
-                const isRound2 = state?.round === "ROUND2" || selectedRound === "ROUND2";
+                const needsSetup =
+                  (state?.round === "ROUND2" || selectedRound === "ROUND2") &&
+                  !pkg.round2Meta;
+                const isRound2 =
+                  state?.round === "ROUND2" || selectedRound === "ROUND2";
+                const isRound3 =
+                  state?.round === "ROUND3" || selectedRound === "ROUND3";
+                const isRound3Ended = state?.round === "ROUND3" && state?.phase === "ROUND3_END";
                 
                 // Simplified logic:
                 // Round 2: can select if not completed AND (not assigned OR needs setup OR is selected)
@@ -649,6 +662,11 @@ export default function MCDashboardPage() {
                   canSelect = !isCompleted;
                   // Disabled only if completed
                   isDisabled = isCompleted;
+                } else if (isRound3) {
+                  // Round 3: allow selecting any package when Round 3 is active
+                  // Only disable when Round 3 has ended (ROUND3_END) OR package is completed
+                  canSelect = !isRound3Ended && !isCompleted;
+                  isDisabled = isRound3Ended || isCompleted;
                 } else {
                   // Round 1: only allow if not assigned and not completed
                   canSelect = !isAssigned && !isCompleted;
@@ -665,6 +683,8 @@ export default function MCDashboardPage() {
                       e.stopPropagation();
                       if (needsSetup) {
                         router.push(`/mc/round2/${pkg._id}`);
+                      } else if (isRound3 && canSelect && !isDisabled) {
+                        router.push(`/mc/round3/${pkg._id}`);
                       } else if (canSelect && !isDisabled) {
                         selectPackage(pkg._id);
                       }
@@ -703,7 +723,9 @@ export default function MCDashboardPage() {
           </Card>
 
           {selectedPackageId && 
-           (((state?.round === "ROUND1" || selectedRound === "ROUND1") && selectedTeamId) || (state?.round === "ROUND2" || selectedRound === "ROUND2")) && 
+           (((state?.round === "ROUND1" || selectedRound === "ROUND1") && selectedTeamId) || 
+            (state?.round === "ROUND2" || selectedRound === "ROUND2") ||
+            (state?.round === "ROUND3" || selectedRound === "ROUND3")) && 
            (!state?.currentQuestionId) && (
             <motion.button
               whileHover={{ scale: 1.05 }}

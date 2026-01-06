@@ -20,7 +20,13 @@ export type Phase =
   | "CNV_JUDGING"
   | "FINAL_PIECE_REVEAL"
   | "CENTER_HINT_ACTIVE"
-  | "KEYWORD_BUZZ_JUDGING";
+  | "KEYWORD_BUZZ_JUDGING"
+  // Round 3 phases
+  | "ROUND3_READY"
+  | "ROUND3_QUESTION_ACTIVE"
+  | "ROUND3_JUDGING"
+  | "ROUND3_RESULTS"
+  | "ROUND3_END";
 
 export type QuestionResult = "CORRECT" | "WRONG" | "TIMEOUT" | "NO_ANSWER";
 
@@ -110,6 +116,23 @@ export interface Round2State {
   pendingAnswers?: PendingAnswer[]; // Array of answers from all teams
 }
 
+// Round 3 specific types
+export interface Round3AnswerResult {
+  teamId: string;
+  isCorrect: boolean;
+  score: number;
+  submissionOrder: number; // 1-based order among correct answers
+  submittedAt: number; // original submission timestamp
+  judgedAt: number; // timestamp
+  answer?: string; // answer text for display
+}
+
+export interface Round3State {
+  currentQuestionIndex?: number; // 0-3
+  pendingAnswers?: PendingAnswer[]; // Array of answers from all teams
+  questionResults?: { [questionIndex: number]: Round3AnswerResult[] }; // Results for each question
+}
+
 export interface GameState {
   round: Round;
   phase: Phase;
@@ -119,6 +142,7 @@ export interface GameState {
   questionTimer?: QuestionTimer;
   teams: TeamScore[];
   round2State?: Round2State;
+  round3State?: Round3State;
   createdAt: Date;
   updatedAt: Date;
 }

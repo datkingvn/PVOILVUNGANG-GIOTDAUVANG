@@ -1,5 +1,5 @@
 import mongoose, { Schema } from "mongoose";
-import type { Round, Phase, QuestionTimer, TeamScore, Round2State, PendingAnswer } from "@/types/game";
+import type { Round, Phase, QuestionTimer, TeamScore, Round2State, Round3State, PendingAnswer } from "@/types/game";
 
 export interface IGameState extends mongoose.Document {
   round: Round;
@@ -10,6 +10,7 @@ export interface IGameState extends mongoose.Document {
   questionTimer?: QuestionTimer;
   teams: TeamScore[];
   round2State?: Round2State;
+  round3State?: Round3State;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -57,6 +58,32 @@ const Round2StateSchema = new Schema(
   { _id: false, strict: false }
 );
 
+const Round3AnswerResultSchema = new Schema(
+  {
+    teamId: { type: String, required: true },
+    isCorrect: { type: Boolean, required: true },
+    score: { type: Number, required: true },
+    submissionOrder: { type: Number, required: true },
+    submittedAt: { type: Number, required: true },
+    judgedAt: { type: Number, required: true },
+    answer: { type: String }, // Answer text for display
+  },
+  { _id: false }
+);
+
+const Round3StateSchema = new Schema(
+  {
+    currentQuestionIndex: { type: Number },
+    pendingAnswers: [PendingAnswerSchema],
+    questionResults: {
+      type: Map,
+      of: [Round3AnswerResultSchema],
+      default: {},
+    },
+  },
+  { _id: false, strict: false }
+);
+
 const GameStateSchema = new Schema<IGameState>(
   {
     round: {
@@ -89,6 +116,12 @@ const GameStateSchema = new Schema<IGameState>(
         "FINAL_PIECE_REVEAL",
         "CENTER_HINT_ACTIVE",
         "KEYWORD_BUZZ_JUDGING",
+        // Round 3 phases
+        "ROUND3_READY",
+        "ROUND3_QUESTION_ACTIVE",
+        "ROUND3_JUDGING",
+        "ROUND3_RESULTS",
+        "ROUND3_END",
       ],
       default: "IDLE",
     },
@@ -98,6 +131,7 @@ const GameStateSchema = new Schema<IGameState>(
     questionTimer: QuestionTimerSchema,
     teams: [TeamScoreSchema],
     round2State: Round2StateSchema,
+    round3State: Round3StateSchema,
   },
   { timestamps: true }
 );

@@ -308,14 +308,34 @@ export function QuestionPanel({
               ) : alreadySubmitted ? (
                 <div
                   style={{
-                    padding: "10px 12px",
-                    background: "rgba(0,0,0,0.22)",
-                    border: "1px solid rgba(170,225,255,0.22)",
-                    color: "rgba(255,255,255,0.82)",
-                    fontSize: 13,
+                    padding: "14px 16px",
+                    background: "rgba(34,197,94,0.16)",
+                    border: "2px solid rgba(34,197,94,0.5)",
+                    borderRadius: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
                   }}
                 >
-                  Đã gửi đáp án, chờ MC chấm điểm...
+                  <span
+                    style={{
+                      fontSize: 24,
+                      fontWeight: 900,
+                      color: "rgba(120,255,210,0.95)",
+                    }}
+                  >
+                    ✓
+                  </span>
+                  <span
+                    style={{
+                      color: "rgba(170,255,230,0.95)",
+                      fontSize: 15,
+                      fontWeight: 700,
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    Đã gửi đáp án thành công! Chờ MC chấm điểm...
+                  </span>
                 </div>
               ) : (
                 <div className="space-y-3">

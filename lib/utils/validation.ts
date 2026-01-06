@@ -36,8 +36,18 @@ export const createQuestionSchema = z.object({
   round: z.enum(["ROUND1", "ROUND2", "ROUND3", "ROUND4"]),
 });
 
+const ArrangeStepSchema = z.object({
+  label: z.string(),
+  text: z.string(),
+});
+
 export const updateQuestionSchema = z.object({
   text: z.string().min(1, "Nội dung câu hỏi không được để trống").optional(),
   index: z.number().int().min(1).max(12).optional(),
+  // Round 3 specific fields
+  answerText: z.string().optional(),
+  acceptedAnswers: z.array(z.string()).optional(),
+  type: z.enum(["reasoning", "video", "arrange"]).optional(),
+  arrangeSteps: z.array(ArrangeStepSchema).optional(),
 });
 

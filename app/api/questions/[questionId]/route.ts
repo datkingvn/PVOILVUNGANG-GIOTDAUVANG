@@ -13,7 +13,7 @@ export async function GET(
     await connectDB();
 
     const { questionId } = await params;
-    const question = await Question.findById(questionId);
+    const question = await Question.findById(questionId).lean();
 
     if (!question) {
       return NextResponse.json(
@@ -22,7 +22,17 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(question);
+    // Ensure all fields are properly serialized, including optional ones
+    const serializedQuestion = {
+      ...question,
+      _id: question._id.toString(),
+      packageId: question.packageId.toString(),
+      answerText: question.answerText || null,
+      acceptedAnswers: question.acceptedAnswers || [],
+      arrangeSteps: question.arrangeSteps || [],
+    };
+
+    return NextResponse.json(serializedQuestion);
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "Lỗi server" },
@@ -35,7 +45,14 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ questionId: string }> }
 ) {
-  let data: { index?: number; text?: string } | undefined;
+  let data: { 
+    index?: number; 
+    text?: string;
+    answerText?: string;
+    acceptedAnswers?: string[];
+    type?: "reasoning" | "video" | "arrange";
+    arrangeSteps?: Array<{ label: string; text: string }>;
+  } | undefined;
   
   try {
     await requireMC();
@@ -70,6 +87,23 @@ export async function PATCH(
 
     if (data.text !== undefined) {
       question.text = data.text;
+    }
+
+    // Update Round 3 specific fields
+    if (data.type !== undefined) {
+      question.type = data.type;
+    }
+
+    if (data.answerText !== undefined) {
+      question.answerText = data.answerText;
+    }
+
+    if (data.acceptedAnswers !== undefined) {
+      question.acceptedAnswers = data.acceptedAnswers;
+    }
+
+    if (data.arrangeSteps !== undefined) {
+      question.arrangeSteps = data.arrangeSteps;
     }
 
     await question.save();

@@ -47,6 +47,19 @@ export async function POST() {
       }
     }
 
+    // Reset all Round 3 packages
+    await Package.updateMany(
+      { round: "ROUND3" },
+      {
+        $set: {
+          status: "unassigned",
+          assignedTeamId: null,
+          currentQuestionIndex: 0,
+          history: [],
+        },
+      }
+    );
+
     // Reset game state
     let gameState = await GameState.findOne();
     if (gameState) {
@@ -57,6 +70,7 @@ export async function POST() {
       gameState.currentQuestionId = undefined;
       gameState.questionTimer = undefined;
       gameState.round2State = undefined;
+      gameState.round3State = undefined;
 
       // Reset team scores and status
       gameState.teams = gameState.teams.map((team: TeamScore) => ({

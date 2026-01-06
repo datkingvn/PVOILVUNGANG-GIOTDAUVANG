@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useGameStore } from "@/store/gameStore";
 import { useAuthStore } from "@/store/authStore";
 import { usePusherGameState, useHydrateGameState } from "@/hooks/usePusherGameState";
+import { useToastStore } from "@/store/toastStore";
 import { Round2StageLayout } from "@/components/round2/Round2StageLayout";
 import { PuzzleBoard } from "@/components/round2/PuzzleBoard";
 import { CNVPanel } from "@/components/round2/CNVPanel";
@@ -14,12 +15,15 @@ import { QuestionCard } from "@/components/game/QuestionCard";
 import { Scoreboard } from "@/components/game/Scoreboard";
 import { Timer } from "@/components/game/Timer";
 import { PackageCard } from "@/components/game/PackageCard";
+import { QuestionDisplay } from "@/components/round3/QuestionDisplay";
+import { Modal } from "@/components/ui/modal";
 import type { Round2Meta, Phase } from "@/types/game";
 
 export default function PlayerPage() {
   const router = useRouter();
   const state = useGameStore((state) => state.state);
   const user = useAuthStore((state) => state.user);
+  const showToast = useToastStore((state) => state.showToast);
   const [question, setQuestion] = useState<any>(null);
   const [packages, setPackages] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
@@ -27,9 +31,19 @@ export default function PlayerPage() {
   const [horizontalQuestions, setHorizontalQuestions] = useState<any[]>([]);
   const [answer, setAnswer] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [localSubmitted, setLocalSubmitted] = useState(false);
+  const [localResult, setLocalResult] = useState<{ isCorrect: boolean; score: number; submissionOrder: number } | null>(null);
+  const [showCongratulationsModal, setShowCongratulationsModal] = useState(false);
 
   useHydrateGameState();
   usePusherGameState();
+
+  // Show congratulations modal when Round 3 ends
+  useEffect(() => {
+    if (state?.round === "ROUND3" && state?.phase === "ROUND3_END") {
+      setShowCongratulationsModal(true);
+    }
+  }, [state?.round, state?.phase]);
 
   useEffect(() => {
     async function checkAuth() {
@@ -114,6 +128,12 @@ export default function PlayerPage() {
     return () => clearInterval(interval);
   }, [state?.questionTimer]);
 
+  // Reset local submitted state when question changes (not when phase changes)
+  useEffect(() => {
+    setLocalSubmitted(false);
+    setLocalResult(null);
+  }, [state?.currentQuestionId]);
+
   // Check if current question has been judged - must be before early return
   const currentQuestionJudged = useMemo(() => {
     if (!state?.currentQuestionId || !packageData?.history) return null;
@@ -140,6 +160,7 @@ export default function PlayerPage() {
   const userTeam = state.teams.find((t) => t.teamId.toString() === userTeamId);
   const isFinished = userTeam?.status === "finished";
   const isRound2 = state.round === "ROUND2";
+  const isRound3 = state.round === "ROUND3";
   const round2Meta: Round2Meta | undefined = packageData?.round2Meta;
 
   // Round2 specific checks
@@ -161,9 +182,10 @@ export default function PlayerPage() {
   // All non-eliminated teams can answer during HORIZONTAL_ACTIVE or CNV_ACTIVE
   const isHorizontalActive = state.phase === "HORIZONTAL_ACTIVE";
   const isCNVActive = state.phase === "CNV_ACTIVE";
-  // Check if this team already submitted
+  // Check if this team already submitted (combine server state and local state)
   const pendingAnswers = state.round2State?.pendingAnswers || [];
-  const alreadySubmitted = userTeamId ? pendingAnswers.some((pa) => pa.teamId === userTeamId) : false;
+  const serverSubmitted = userTeamId ? pendingAnswers.some((pa) => pa.teamId === userTeamId) : false;
+  const alreadySubmitted = serverSubmitted || localSubmitted;
 
   // Cannot answer if question has been judged (either CORRECT or WRONG) or time is up
   const canAnswer = !isEliminated && (isHorizontalActive || isCNVActive) && !alreadySubmitted && !currentQuestionJudged && !isTimeUp;
@@ -235,23 +257,58 @@ export default function PlayerPage() {
   };
 
   const handleSubmitAnswer = async (answerText: string) => {
-    if (!answerText.trim() || !canAnswer) return;
+    if (!answerText.trim()) return;
+    
+    // Tính toán điều kiện submit dựa trên round
+    let canSubmit = false;
+    if (isRound3) {
+      const canSubmitRound3 = !!(
+        state.phase === "ROUND3_QUESTION_ACTIVE" &&
+        state.questionTimer &&
+        state.questionTimer.running &&
+        Date.now() <= state.questionTimer.endsAt
+      );
+      const serverSubmittedRound3 = state.round3State?.pendingAnswers?.some(
+        (pa: any) => pa.teamId === userTeamId
+      );
+      const alreadySubmittedRound3 = serverSubmittedRound3 || localSubmitted;
+      canSubmit = canSubmitRound3 && !alreadySubmittedRound3;
+    } else {
+      canSubmit = canAnswer;
+    }
+    
+    if (!canSubmit) return;
+    
     setSubmitting(true);
     try {
-      const res = await fetch("/api/game-control/round2/submit-answer", {
+      const endpoint = isRound3
+        ? "/api/game-control/round3/submit-answer"
+        : "/api/game-control/round2/submit-answer";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ answer: answerText.trim() }),
       });
       if (!res.ok) {
         const error = await res.json();
-        alert(error.error || "Lỗi submit đáp án");
+        showToast(error.error || "Lỗi submit đáp án", "error");
       } else {
+        const data = await res.json();
         setAnswer("");
+        setLocalSubmitted(true); // Update local state immediately for instant UI feedback
+        // Lưu kết quả từ response để hiển thị ngay
+        if (data.isCorrect !== undefined) {
+          setLocalResult({
+            isCorrect: data.isCorrect,
+            score: data.score || 0,
+            submissionOrder: data.submissionOrder || 0,
+          });
+        }
+        // Không hiển thị toast, kết quả sẽ hiển thị ngay trong UI
       }
     } catch (error) {
       console.error("Error submitting answer:", error);
-      alert("Lỗi submit đáp án");
+      showToast("Lỗi kết nối khi submit đáp án. Vui lòng thử lại.", "error");
     } finally {
       setSubmitting(false);
     }
@@ -265,6 +322,290 @@ export default function PlayerPage() {
   // Get CNV input (if any team is answering CNV)
   // Get the first pending answer if available (for display purposes)
   const cnvInput = state.round2State?.pendingAnswers?.[0]?.answer || "";
+
+  // Round 3 Layout
+  if (isRound3) {
+    const canSubmitRound3 = !!(
+      state.phase === "ROUND3_QUESTION_ACTIVE" &&
+      state.questionTimer &&
+      state.questionTimer.running &&
+      Date.now() <= state.questionTimer.endsAt
+    );
+    const currentQuestionIndex = state.round3State?.currentQuestionIndex ?? -1;
+    const questionIndexKey = String(currentQuestionIndex); // Mongoose Map uses string keys
+    // Access questionResults - handle both Map and object
+    const questionResults = (() => {
+      if (!state?.round3State?.questionResults) return [];
+      const qr = state.round3State.questionResults;
+      if (qr instanceof Map) {
+        return qr.get(questionIndexKey) || [];
+      } else {
+        const resultsObj = qr as Record<string, any>;
+        return resultsObj[questionIndexKey] || resultsObj[currentQuestionIndex] || [];
+      }
+    })();
+    const userResult = questionResults.find(
+      (r: any) => r.teamId === userTeamId
+    );
+    // Đã submit nếu có trong questionResults (đã được chấm tự động) hoặc pendingAnswers
+    const serverSubmittedRound3 = 
+      userResult !== undefined || 
+      state.round3State?.pendingAnswers?.some(
+        (pa: any) => pa.teamId === userTeamId
+      );
+    const alreadySubmittedRound3 = serverSubmittedRound3 || localSubmitted;
+
+    return (
+      <div
+        className="min-h-screen p-4 md:p-6 relative"
+        style={{
+          backgroundImage: `url('/system/match.jpg')`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      >
+        <div className="max-w-6xl mx-auto">
+          {/* Header */}
+          <div className="mb-6 text-center">
+            <h1 className="text-3xl font-bold text-white mb-2">Vòng 3 - Tăng tốc vận hành</h1>
+            {state.questionTimer && (
+              <div className="flex justify-center">
+                <Timer timer={state.questionTimer} size="lg" />
+              </div>
+            )}
+          </div>
+
+          {/* Question Display */}
+          {question && (
+            <div className="mb-6">
+              <div className="bg-gray-900/90 rounded-lg p-6 border border-gray-700">
+                <div className="mb-4 text-sm text-gray-400">
+                  Câu {state.round3State?.currentQuestionIndex !== undefined ? state.round3State.currentQuestionIndex + 1 : "?"} / 4
+                </div>
+                <QuestionDisplay question={question} />
+              </div>
+            </div>
+          )}
+
+          {/* Answer Submission */}
+          {question && (
+            <div className="mb-6">
+              <div className="bg-gray-900/90 rounded-lg p-6 border border-gray-700">
+                {alreadySubmittedRound3 ? (
+                  (() => {
+                    // Ưu tiên hiển thị kết quả từ localResult (ngay sau khi submit) hoặc userResult (từ state)
+                    const result = localResult || userResult;
+                    if (result) {
+                      return (
+                        <div className="text-center py-4">
+                          <div className={`font-bold text-xl mb-2 ${result.isCorrect ? 'text-green-400' : 'text-red-400'}`}>
+                            {result.isCorrect ? '✓ Đáp án đúng!' : '✗ Đáp án sai'}
+                          </div>
+                          {result.isCorrect && result.score > 0 && (
+                            <div className="text-yellow-400 font-bold text-3xl mb-2">
+                              +{result.score} điểm
+                            </div>
+                          )}
+                          {result.isCorrect && result.submissionOrder > 0 && (
+                            <div className="text-gray-300 text-sm mb-2">
+                              Thứ hạng: {result.submissionOrder}
+                            </div>
+                          )}
+                          {!result.isCorrect && (
+                            <div className="text-gray-400 text-sm">
+                              0 điểm
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    // Chưa có kết quả (shouldn't happen but just in case)
+                    return (
+                      <div className="text-center py-4">
+                        <div className="text-green-400 font-semibold mb-2">
+                          ✓ Đã gửi đáp án
+                        </div>
+                        <div className="text-gray-400 text-sm">
+                          Đang xử lý kết quả...
+                        </div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div>
+                    <label className="block text-white font-semibold mb-2">
+                      Nhập đáp án:
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={answer}
+                        onChange={(e) => setAnswer(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter" && !submitting && answer.trim() && canSubmitRound3) {
+                            handleSubmitAnswer(answer);
+                          }
+                        }}
+                        className="flex-1 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        placeholder="Nhập đáp án của bạn..."
+                        disabled={submitting || !canSubmitRound3}
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => handleSubmitAnswer(answer)}
+                        disabled={!answer.trim() || submitting || !canSubmitRound3}
+                        className="px-6 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-lg font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {submitting ? "Đang gửi..." : "Gửi"}
+                      </button>
+                    </div>
+                    {state.questionTimer && state.questionTimer.running && (
+                      <div className="mt-2 text-sm text-gray-400">
+                        Thời gian còn lại: {Math.max(0, Math.ceil((state.questionTimer.endsAt - Date.now()) / 1000))}s
+                      </div>
+                    )}
+                    {!canSubmitRound3 && (
+                      <div className="mt-2 text-sm text-yellow-400">
+                        {state.phase === "ROUND3_QUESTION_ACTIVE" && state.questionTimer && !state.questionTimer.running
+                          ? "⚠ Đã hết thời gian"
+                          : state.phase === "ROUND3_READY"
+                          ? "⏳ Chờ MC bắt đầu câu hỏi..."
+                          : "⏳ Chờ MC bắt đầu câu hỏi..."}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Results Display - Hiển thị kết quả chi tiết khi phase là RESULTS */}
+          {state.phase === "ROUND3_RESULTS" && userResult && (
+            <div className="mb-6">
+              <div
+                className={`rounded-lg p-6 border-2 ${
+                  userResult.isCorrect
+                    ? "bg-gradient-to-r from-green-900/30 to-emerald-900/30 border-green-600/50"
+                    : "bg-gradient-to-r from-red-900/30 to-rose-900/30 border-red-600/50"
+                }`}
+              >
+                <div className="text-center">
+                  {userResult.isCorrect ? (
+                    <>
+                      <div className="text-green-400 font-bold text-2xl mb-2">
+                        Đáp án đúng!
+                      </div>
+                      {userResult.score > 0 && (
+                        <div className="text-yellow-400 font-bold text-3xl mb-2">
+                          +{userResult.score} điểm
+                        </div>
+                      )}
+                      {userResult.submissionOrder > 0 && (
+                        <div className="text-gray-300 text-sm">
+                          Thứ hạng: {userResult.submissionOrder}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-red-400 font-bold text-xl">
+                      Đáp án sai - 0 điểm
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Scoreboard */}
+          <Scoreboard teams={state.teams} />
+        </div>
+
+        {/* Congratulations Modal - Show when Round 3 ends */}
+        {state.phase === "ROUND3_END" && (
+          <Modal
+            isOpen={showCongratulationsModal}
+            onClose={() => setShowCongratulationsModal(false)}
+            title="🎉 Chúc mừng các đội chơi!"
+            maxWidth="48rem"
+          >
+            <div className="space-y-6">
+              <div className="text-center">
+                <div className="text-6xl mb-4">🏆</div>
+                <h3 className="text-2xl font-bold text-white mb-2">
+                  Round 3 đã kết thúc!
+                </h3>
+                <p className="text-gray-300">
+                  Dưới đây là kết quả cuối cùng của các đội
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {[...(state?.teams || [])]
+                  .sort((a, b) => b.score - a.score)
+                  .map((team, index) => (
+                    <div
+                      key={team.teamId}
+                      className={`p-4 rounded-lg border-2 ${
+                        index === 0
+                          ? "bg-gradient-to-r from-yellow-900/30 to-amber-900/30 border-yellow-500/50"
+                          : index === 1
+                          ? "bg-gradient-to-r from-gray-700/30 to-gray-600/30 border-gray-500/50"
+                          : index === 2
+                          ? "bg-gradient-to-r from-orange-900/30 to-amber-900/30 border-orange-500/50"
+                          : "bg-gradient-to-r from-gray-800/30 to-gray-700/30 border-gray-600/50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div
+                            className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl ${
+                              index === 0
+                                ? "bg-gradient-to-br from-yellow-400 to-amber-600 text-white"
+                                : index === 1
+                                ? "bg-gradient-to-br from-gray-400 to-gray-600 text-white"
+                                : index === 2
+                                ? "bg-gradient-to-br from-orange-400 to-amber-600 text-white"
+                                : "bg-gradient-to-br from-gray-500 to-gray-700 text-white"
+                            }`}
+                          >
+                            {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : index + 1}
+                          </div>
+                          <div>
+                            <div className="font-semibold text-white text-lg">
+                              {team.nameSnapshot || team.teamId}
+                            </div>
+                            {index === 0 && (
+                              <div className="text-sm text-yellow-400 font-medium">
+                                Vô địch Round 3!
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-yellow-400">
+                            {team.score} điểm
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowCongratulationsModal(false)}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-lg font-semibold text-white transition-all"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+      </div>
+    );
+  }
 
   // Round 2 Layout - Broadcast style
   if (isRound2 && round2Meta) {

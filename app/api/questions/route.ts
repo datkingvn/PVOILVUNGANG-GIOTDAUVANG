@@ -18,8 +18,17 @@ export async function GET(request: NextRequest) {
     if (round) query.round = round;
     if (packageId) query.packageId = packageId;
 
-    const questions = await Question.find(query).sort({ index: 1 });
-    return NextResponse.json(questions);
+    const questions = await Question.find(query).sort({ index: 1 }).lean();
+    // Ensure all fields are properly serialized, including optional ones
+    const serializedQuestions = questions.map((q: any) => ({
+      ...q,
+      _id: q._id.toString(),
+      packageId: q.packageId.toString(),
+      answerText: q.answerText || null,
+      acceptedAnswers: q.acceptedAnswers || [],
+      arrangeSteps: q.arrangeSteps || [],
+    }));
+    return NextResponse.json(serializedQuestions);
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "Lỗi server" },
@@ -65,12 +74,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const question = await Question.create({
+    // Prepare question data with Round 3 specific fields
+    const questionData: any = {
       text,
       packageId,
       index,
       round,
-    });
+    };
+
+    // Add Round 3 specific fields if provided
+    if (round === "ROUND3") {
+      if (body.type) {
+        questionData.type = body.type;
+      }
+      if (body.answerText) {
+        questionData.answerText = body.answerText.trim();
+      }
+      if (body.acceptedAnswers && Array.isArray(body.acceptedAnswers)) {
+        questionData.acceptedAnswers = body.acceptedAnswers.filter((a: string) => a.trim());
+      }
+      if (body.arrangeSteps && Array.isArray(body.arrangeSteps)) {
+        questionData.arrangeSteps = body.arrangeSteps;
+      }
+    }
+
+    const question = await Question.create(questionData);
 
     // Add question to package
     pkg.questions.push(question._id);

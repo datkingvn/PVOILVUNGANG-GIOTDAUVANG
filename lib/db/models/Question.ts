@@ -8,10 +8,20 @@ export interface IQuestion extends mongoose.Document {
   round: Round;
   answerText?: string;
   acceptedAnswers?: string[];
-  type?: "horizontal" | "centerHint";
+  type?: "horizontal" | "centerHint" | "reasoning" | "video" | "arrange";
+  videoUrl?: string;
+  arrangeSteps?: Array<{ label: string; text: string }>;
   createdAt: Date;
   updatedAt: Date;
 }
+
+const ArrangeStepSchema = new Schema(
+  {
+    label: { type: String, required: true },
+    text: { type: String, required: true },
+  },
+  { _id: false }
+);
 
 const QuestionSchema = new Schema<IQuestion>(
   {
@@ -21,7 +31,9 @@ const QuestionSchema = new Schema<IQuestion>(
     round: { type: String, required: true, enum: ["ROUND1", "ROUND2", "ROUND3", "ROUND4"] },
     answerText: { type: String },
     acceptedAnswers: [{ type: String }],
-    type: { type: String, enum: ["horizontal", "centerHint"] },
+    type: { type: String, enum: ["horizontal", "centerHint", "reasoning", "video", "arrange"] },
+    videoUrl: { type: String },
+    arrangeSteps: [ArrangeStepSchema],
   },
   { timestamps: true }
 );
