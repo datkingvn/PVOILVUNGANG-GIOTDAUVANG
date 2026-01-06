@@ -26,7 +26,21 @@ export type Phase =
   | "ROUND3_QUESTION_ACTIVE"
   | "ROUND3_JUDGING"
   | "ROUND3_RESULTS"
-  | "ROUND3_END";
+  | "ROUND3_END"
+  // Round 4 phases
+  | "R4_IDLE"
+  | "R4_TURN_SELECT_PACKAGE"
+  | "R4_TURN_PICK_QUESTIONS"
+  | "R4_STAR_CONFIRMATION"
+  | "R4_QUESTION_SHOW"
+  | "R4_QUESTION_LOCK_MAIN"
+  | "R4_JUDGE_MAIN"
+  | "R4_STEAL_WINDOW"
+  | "R4_STEAL_LOCKED"
+  | "R4_JUDGE_STEAL"
+  | "R4_NEXT_QUESTION"
+  | "R4_NEXT_TEAM"
+  | "R4_END";
 
 export type QuestionResult = "CORRECT" | "WRONG" | "TIMEOUT" | "NO_ANSWER";
 
@@ -133,6 +147,67 @@ export interface Round3State {
   questionResults?: { [questionIndex: number]: Round3AnswerResult[] }; // Results for each question
 }
 
+// Round 4 specific types
+
+export type Round4PackagePoints = 40 | 60 | 80;
+
+export interface Round4QuestionRef {
+  questionId: string;
+  points: 10 | 20 | 30;
+}
+
+export interface Round4StarUsage {
+  used: boolean;
+  questionIndex?: number; // 0,1,2
+}
+
+export interface Round4BuzzInfo {
+  teamId: string;
+  buzzedAt: number;
+}
+
+export interface Round4StealWindow {
+  active: boolean;
+  endsAt: number;
+  buzzLockedTeamId?: string;
+  buzzedTeams: Round4BuzzInfo[];
+}
+
+export interface Round4StealAnswer {
+  teamId: string;
+  answer: string;
+  submittedAt: number;
+}
+
+export interface Round4State {
+  // Lượt & đội
+  turnIndex: number; // 0..N-1
+  currentTeamId?: string;
+
+  // Gói & câu hỏi
+  selectedPackage?: Round4PackagePoints;
+  questionPattern?: number[]; // [10,10,20] ...
+  currentQuestionIndex?: number; // 0..2
+  questions?: Round4QuestionRef[]; // 3 câu của gói
+
+  // Star
+  starUsages: { [teamId: string]: Round4StarUsage };
+
+  // Ngân hàng câu hỏi đã dùng theo mức điểm
+  usedQuestionIdsByPoints: {
+    10: string[];
+    20: string[];
+    30: string[];
+  };
+
+  // Đáp án của đội đang thi (chốt đáp án cuối)
+  lastMainAnswer?: string;
+
+  // Steal window & trả lời
+  stealWindow?: Round4StealWindow;
+  stealAnswer?: Round4StealAnswer;
+}
+
 export interface GameState {
   round: Round;
   phase: Phase;
@@ -143,6 +218,7 @@ export interface GameState {
   teams: TeamScore[];
   round2State?: Round2State;
   round3State?: Round3State;
+  round4State?: Round4State;
   createdAt: Date;
   updatedAt: Date;
 }

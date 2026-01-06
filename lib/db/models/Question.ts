@@ -6,6 +6,8 @@ export interface IQuestion extends mongoose.Document {
   packageId: mongoose.Types.ObjectId;
   index: number;
   round: Round;
+  // Round 4 specific: mức điểm 10/20/30 cho question bank
+  points?: 10 | 20 | 30;
   answerText?: string;
   acceptedAnswers?: string[];
   type?: "horizontal" | "centerHint" | "reasoning" | "video" | "arrange";
@@ -29,6 +31,7 @@ const QuestionSchema = new Schema<IQuestion>(
     packageId: { type: Schema.Types.ObjectId, ref: "Package", required: true },
     index: { type: Number, required: true },
     round: { type: String, required: true, enum: ["ROUND1", "ROUND2", "ROUND3", "ROUND4"] },
+    points: { type: Number },
     answerText: { type: String },
     acceptedAnswers: [{ type: String }],
     type: { type: String, enum: ["horizontal", "centerHint", "reasoning", "video", "arrange"] },

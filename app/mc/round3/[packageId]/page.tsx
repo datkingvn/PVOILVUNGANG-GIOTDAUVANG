@@ -17,6 +17,7 @@ export default function Round3ManagementPage() {
   const params = useParams();
   const packageId = params?.packageId as string;
   const state = useGameStore((state) => state.state);
+  const serverTimeOffset = useGameStore((state) => state.serverTimeOffset);
 
   const [packageData, setPackageData] = useState<any>(null);
   const [questions, setQuestions] = useState<any[]>([]);
@@ -28,13 +29,13 @@ export default function Round3ManagementPage() {
   useHydrateGameState();
   usePusherGameState();
 
-  // Update current time for timer display
+  // Update current time for timer display - use server time offset
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentTime(Date.now());
+      setCurrentTime(Date.now() + serverTimeOffset);
     }, 100);
     return () => clearInterval(interval);
-  }, []);
+  }, [serverTimeOffset]);
 
   useEffect(() => {
     async function checkAuth() {

@@ -58,6 +58,7 @@ export async function broadcastGameState() {
 
   await pusher.trigger("game-state", "state:update", {
     state: stateObj,
+    serverTime: Date.now(), // Include server time for client sync
   });
 }
 

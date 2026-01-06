@@ -7,6 +7,7 @@ interface QuestionCardProps {
   questionNumber?: number;
   totalQuestions?: number;
   packageNumber?: number;
+  hasStar?: boolean; // Hiển thị biểu tượng ngôi sao hy vọng
 }
 
 export function QuestionCard({
@@ -14,6 +15,7 @@ export function QuestionCard({
   questionNumber,
   totalQuestions,
   packageNumber,
+  hasStar = false,
 }: QuestionCardProps) {
   const [fontSize, setFontSize] = useState("text-2xl");
 
@@ -87,13 +89,23 @@ export function QuestionCard({
           />
 
           <div className="relative z-10">
-            {packageNumber != null &&
-              questionNumber != null &&
-              totalQuestions != null && (
-                <div className="text-sm md:text-base text-white/80 mb-4">
-                  Gói {packageNumber} • Câu {questionNumber}/{totalQuestions}
+            <div className="flex items-center justify-between mb-4">
+              {packageNumber != null &&
+                questionNumber != null &&
+                totalQuestions != null && (
+                  <div className="text-sm md:text-base text-white/80">
+                    Gói {packageNumber} • Câu {questionNumber}/{totalQuestions}
+                  </div>
+                )}
+              {hasStar && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-yellow-500/20 border border-yellow-400/50">
+                  <span className="text-xl">⭐</span>
+                  <span className="text-xs md:text-sm font-semibold text-yellow-200">
+                    Ngôi sao hy vọng
+                  </span>
                 </div>
               )}
+            </div>
 
             {questionText ? (
               <div

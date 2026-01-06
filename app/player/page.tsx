@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "@/store/gameStore";
 import { useAuthStore } from "@/store/authStore";
@@ -22,9 +22,11 @@ import type { Round2Meta, Phase } from "@/types/game";
 export default function PlayerPage() {
   const router = useRouter();
   const state = useGameStore((state) => state.state);
+  const serverTimeOffset = useGameStore((state) => state.serverTimeOffset);
   const user = useAuthStore((state) => state.user);
   const showToast = useToastStore((state) => state.showToast);
   const [question, setQuestion] = useState<any>(null);
+  const questionCacheRef = useRef<Record<string, any>>({});
   const [packages, setPackages] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [packageData, setPackageData] = useState<any>(null);
@@ -63,23 +65,40 @@ export default function PlayerPage() {
   }, [router]);
 
   useEffect(() => {
-    if (state?.currentQuestionId) {
-      fetch(`/api/questions/${state.currentQuestionId}`)
-        .then((res) => res.json())
-        .then(setQuestion)
-        .catch(console.error);
-    } else {
+    const qId = state?.currentQuestionId;
+    if (!qId) {
       setQuestion(null);
+      return;
     }
+
+    const cached = questionCacheRef.current[qId];
+    if (cached) {
+      setQuestion(cached);
+      return;
+    }
+
+    let canceled = false;
+    fetch(`/api/questions/${qId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (canceled) return;
+        questionCacheRef.current[qId] = data;
+        setQuestion(data);
+      })
+      .catch(console.error);
+
+    return () => {
+      canceled = true;
+    };
   }, [state?.currentQuestionId]);
 
   useEffect(() => {
-    if (state?.round) {
-      fetch(`/api/packages/public?round=${state.round}`)
-        .then((res) => res.json())
-        .then(setPackages)
-        .catch(console.error);
-    }
+    if (!state?.round || state.round === "ROUND4") return;
+
+    fetch(`/api/packages/public?round=${state.round}`)
+      .then((res) => res.json())
+      .then(setPackages)
+      .catch(console.error);
   }, [state?.round, state?.phase, state?.activePackageId]);
 
   useEffect(() => {
@@ -114,19 +133,15 @@ export default function PlayerPage() {
       .catch(console.error);
   }, []);
 
-  // Track current time for timer updates - must be before early return
+  // Track current time for timer updates (câu hỏi + steal window) - đặt trước early return
   const [currentTime, setCurrentTime] = useState(Date.now());
 
-  // Update current time every second when timer is running - must be before early return
+  // Update current time định kỳ để phục vụ cả question timer và Round4 steal window
+  // Use server time offset to sync with server
   useEffect(() => {
-    if (!state?.questionTimer || !state.questionTimer.running) return;
-
-    const interval = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 1000); // Update every second
-
+    const interval = setInterval(() => setCurrentTime(Date.now() + serverTimeOffset), 500);
     return () => clearInterval(interval);
-  }, [state?.questionTimer]);
+  }, [serverTimeOffset]);
 
   // Reset local submitted state when question changes (not when phase changes)
   useEffect(() => {
@@ -161,6 +176,7 @@ export default function PlayerPage() {
   const isFinished = userTeam?.status === "finished";
   const isRound2 = state.round === "ROUND2";
   const isRound3 = state.round === "ROUND3";
+  const isRound4 = state.round === "ROUND4";
   const round2Meta: Round2Meta | undefined = packageData?.round2Meta;
 
   // Round2 specific checks
@@ -253,6 +269,96 @@ export default function PlayerPage() {
     } catch (error) {
       console.error("Error buzzing CNV:", error);
       alert("Lỗi bấm chuông CNV");
+    }
+  };
+
+  // Round 4: steal window & Ngôi sao hy vọng
+  const r4 = state.round4State;
+  // Đảm bảo key matching đúng với format trong confirm-star API (teamId.toString())
+  const userTeamKey = userTeamId?.toString();
+  const starUsage = r4 && userTeamKey && r4.starUsages ? (r4.starUsages as any)[userTeamKey] : null;
+  const hasStarOnCurrentR4 = !!(
+    isRound4 &&
+    r4 &&
+    userTeamKey &&
+    starUsage &&
+    starUsage.used &&
+    starUsage.questionIndex === r4.currentQuestionIndex
+  );
+
+  // Banner steal window hiển thị cho các đội còn lại
+  const isRound4StealWindow =
+    isRound4 && state.phase === "R4_STEAL_WINDOW" && !!r4?.stealWindow;
+
+  // Countdown thô theo milliseconds server (có thể lệch do clock client/server)
+  const rawRound4StealCountdown =
+    isRound4StealWindow && r4?.stealWindow
+      ? Math.max(0, Math.ceil((r4.stealWindow.endsAt - currentTime) / 1000))
+      : 0;
+
+  // Clamp hiển thị về tối đa 5s để luôn đúng với cửa sổ 5 giây, tránh lệch giờ hệ thống
+  const round4StealCountdown =
+    rawRound4StealCountdown > 0 ? Math.min(5, rawRound4StealCountdown) : 0;
+
+  // Đảm bảo so sánh đúng với key matching (convert cả hai sang string)
+  const isMainTeamRound4 =
+    isRound4 && r4?.currentTeamId && userTeamKey && r4.currentTeamId.toString() === userTeamKey;
+
+  // Chỉ cho phép bấm chuông khi cửa sổ còn active, còn thời gian và không phải đội đang thi
+  const canBuzzRound4 =
+    isRound4StealWindow &&
+    !!r4?.stealWindow?.active &&
+    round4StealCountdown > 0 &&
+    !isMainTeamRound4;
+
+  const handleBuzzRound4 = async () => {
+    if (!isRound4 || !userTeamId || !canBuzzRound4) return;
+    try {
+      const res = await fetch("/api/game-control/round4/buzz", {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.error || "Không thể bấm chuông giành quyền Round 4");
+      }
+    } catch (error) {
+      console.error("Error buzzing Round 4:", error);
+      alert("Lỗi bấm chuông giành quyền Round 4");
+    }
+  };
+
+  // Thông tin Ngôi sao hy vọng cho đội hiện tại (Round 4) - sử dụng lại userTeamKey đã khai báo ở trên
+  const currentStarRecordRound4 =
+    isRound4 && r4 && userTeamKey && r4.starUsages
+      ? (r4.starUsages as any)[userTeamKey]
+      : null;
+  // Kiểm tra xem đội đã dùng ngôi sao ở câu nào chưa (chỉ được dùng 1 lần trong vòng 4)
+  const hasUsedStarBefore =
+    !!currentStarRecordRound4 && !!currentStarRecordRound4.used;
+
+  // Kiểm tra xem có đang ở phase chờ xác nhận ngôi sao không
+  // Luôn hiển thị popup ở mỗi câu hỏi mới (trừ khi đội đã dùng ngôi sao rồi thì không hỏi nữa)
+  const isStarConfirmationPhase =
+    isRound4 &&
+    state.phase === "R4_STAR_CONFIRMATION" &&
+    isMainTeamRound4 &&
+    !hasUsedStarBefore; // Chỉ không hỏi nếu đã dùng ngôi sao rồi
+
+  const handleConfirmStar = async (useStar: boolean) => {
+    if (!isRound4 || !userTeamId || !isMainTeamRound4) return;
+    try {
+      const res = await fetch("/api/player/round4/confirm-star", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ useStar }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.error || "Không thể xác nhận Ngôi sao hy vọng");
+      }
+    } catch (error) {
+      console.error("Error confirming star Round 4:", error);
+      alert("Lỗi xác nhận Ngôi sao hy vọng");
     }
   };
 
@@ -680,6 +786,38 @@ export default function PlayerPage() {
         backgroundRepeat: "no-repeat",
       }}
     >
+      {/* Round 4 - Steal window banner for other teams */}
+      {isRound4StealWindow && !isMainTeamRound4 && (
+        <div
+          className={`mb-4 p-4 rounded-lg border border-amber-500/70 bg-gradient-to-r from-amber-700/60 to-red-700/60 shadow-lg transition-opacity duration-300 ${
+            !canBuzzRound4 ? "opacity-50" : ""
+          }`}
+        >
+          <div className="flex flex-col md:flex-row items-center justify-between gap-3">
+            <div>
+              <div className="text-sm uppercase tracking-wide text-amber-100/90">
+                Cửa sổ giành quyền trả lời
+              </div>
+              <div className="text-lg md:text-2xl font-bold text-white">
+                Bấm chuông để giành quyền trả lời và cướp điểm!
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-3xl font-extrabold text-amber-200 tabular-nums">
+                {round4StealCountdown}s
+              </div>
+              <button
+                onClick={handleBuzzRound4}
+                disabled={!canBuzzRound4}
+                className="px-4 py-2 rounded-full bg-amber-400 hover:bg-amber-300 text-amber-950 font-bold shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                RUNG CHUÔNG NGAY
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Status Banner */}
       {state.activeTeamId && !state.currentQuestionId && !isRound2 ? (
         <div className="mb-4 p-4 bg-gradient-to-r from-yellow-600/20 to-yellow-700/20 border border-yellow-500/50 rounded-lg">
@@ -699,11 +837,57 @@ export default function PlayerPage() {
         </div>
       )}
 
-      {/* Regular Round1 UI */}
+      {/* Round 4 - Ngôi sao hy vọng banner cho đội đang thi */}
+      {isRound4 && hasStarOnCurrentR4 && (
+        <div className="mb-4 max-w-3xl mx-auto p-3 rounded-xl border border-yellow-400/70 bg-yellow-500/15 backdrop-blur-sm">
+          <div className="flex items-center gap-3 justify-center">
+            <span className="text-xl">★</span>
+            <span className="text-sm md:text-base text-yellow-100 font-semibold">
+              Ngôi sao hy vọng đang được sử dụng cho câu hỏi hiện tại. Nếu trả lời đúng, đội sẽ được nhân đôi số điểm!
+            </span>
+          </div>
+        </div>
+      )}
+
+
+      {/* Hiển thị gói cho Round 1/3 (dùng PackageCard) hoặc Round 4 (hiển thị 40/60/80 điểm, chỉ đọc) */}
       {state.activeTeamId && state.phase !== "IDLE" && !state.currentQuestionId && (
         <div className="mb-4">
           <h2 className="text-xl font-bold text-white mb-4">Gói câu hỏi</h2>
-          {packages.length === 0 ? (
+          {isRound4 ? (
+            <div className="max-w-4xl mx-auto">
+              <div className="rounded-2xl bg-blue-900/60 border border-blue-400/60 px-6 py-4 text-center shadow-xl">
+                <div className="text-sm uppercase tracking-wide text-blue-100">
+                  Gói đang được MC chọn cho đội thi
+                </div>
+                <div className="mt-2 text-3xl font-extrabold text-white">
+                  {state.round4State?.selectedPackage
+                    ? `Gói ${state.round4State.selectedPackage} điểm`
+                    : "Chưa chọn gói"}
+                </div>
+                <div className="mt-3 flex items-center justify-center gap-4 text-sm text-blue-100/80">
+                  {[40, 60, 80].map((pts) => {
+                    const isSelected = state.round4State?.selectedPackage === pts;
+                    return (
+                      <div
+                        key={pts}
+                        className={`min-w-[90px] px-4 py-2 rounded-full border text-center text-base font-semibold ${
+                          isSelected
+                            ? "border-yellow-300 bg-yellow-400/20 text-yellow-100"
+                            : "border-blue-300/50 bg-blue-800/60 text-blue-100/80"
+                        }`}
+                      >
+                        Gói {pts}
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-blue-100/70">
+                  Đội thi chỉ xem thông tin gói; MC là người lựa chọn gói trên màn hình điều khiển.
+                </p>
+              </div>
+            </div>
+          ) : packages.length === 0 ? (
             <p className="text-gray-400 text-center py-4">Đang tải danh sách gói...</p>
           ) : (
             <div className="grid grid-cols-2 gap-4">
@@ -731,17 +915,70 @@ export default function PlayerPage() {
         </div>
       )}
 
-      {state.currentQuestionId && (
+      {/* Round 4: Chỉ hiển thị câu hỏi sau khi đội đã xác nhận ngôi sao */}
+      {state.currentQuestionId && 
+       !(isRound4 && state.phase === "R4_STAR_CONFIRMATION" && isMainTeamRound4) && (
         <div className="mb-4">
           <QuestionCard
             questionText={question?.text || "Đang tải câu hỏi..."}
             questionNumber={question?.index}
             totalQuestions={12}
+            hasStar={isRound4 && hasStarOnCurrentR4}
           />
         </div>
       )}
 
       <Scoreboard teams={state.teams} activeTeamId={state.activeTeamId?.toString()} />
+
+      {/* Round 4 - Star Confirmation Modal */}
+      {isStarConfirmationPhase && (
+        <Modal
+          isOpen={true}
+          onClose={() => {}} // Không cho đóng modal, phải chọn
+          title="★ Ngôi sao hy vọng"
+          maxWidth="32rem"
+        >
+          <div className="space-y-6">
+            <div className="text-center">
+              <div className="text-6xl mb-4">⭐</div>
+              <h3 className="text-xl font-bold text-white mb-4">
+                Bạn có muốn sử dụng Ngôi sao hy vọng cho câu hỏi này không?
+              </h3>
+              <div className="space-y-3 text-left bg-yellow-500/10 border border-yellow-400/30 rounded-lg p-4">
+                <p className="text-yellow-100 text-sm">
+                  <strong className="text-yellow-200">Ngôi sao hy vọng:</strong>
+                </p>
+                <ul className="text-yellow-100/90 text-sm space-y-2 list-disc list-inside">
+                  <li>Nếu trả lời đúng câu hỏi này, điểm sẽ được <strong className="text-yellow-200">nhân đôi</strong></li>
+                  <li>Nếu trả lời sai, điểm sẽ bị <strong className="text-yellow-200">trừ đầy đủ</strong> số điểm của câu hỏi</li>
+                  <li>Mỗi đội chỉ được sử dụng Ngôi sao hy vọng <strong className="text-yellow-200">một lần</strong> trong Vòng 4</li>
+                  {hasUsedStarBefore && (
+                    <li className="text-red-300 font-semibold">
+                      ⚠️ Bạn đã sử dụng Ngôi sao hy vọng rồi, không thể sử dụng lại
+                    </li>
+                  )}
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button
+                onClick={() => handleConfirmStar(false)}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 rounded-lg font-semibold text-white transition-all"
+              >
+                Không, không sử dụng
+              </button>
+              <button
+                onClick={() => handleConfirmStar(true)}
+                disabled={hasUsedStarBefore}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 rounded-lg font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Có, sử dụng Ngôi sao
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

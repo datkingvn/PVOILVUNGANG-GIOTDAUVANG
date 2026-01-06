@@ -22,7 +22,10 @@ export async function GET() {
       stateObj.round2State.pendingAnswers = JSON.parse(JSON.stringify(stateObj.round2State.pendingAnswers));
     }
 
-    return NextResponse.json({ state: stateObj });
+    return NextResponse.json({ 
+      state: stateObj,
+      serverTime: Date.now(), // Include server time for client sync
+    });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "Lỗi server" },

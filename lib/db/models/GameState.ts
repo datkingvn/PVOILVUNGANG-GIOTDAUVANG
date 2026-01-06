@@ -1,5 +1,13 @@
 import mongoose, { Schema } from "mongoose";
-import type { Round, Phase, QuestionTimer, TeamScore, Round2State, Round3State, PendingAnswer } from "@/types/game";
+import type {
+  Round,
+  Phase,
+  QuestionTimer,
+  TeamScore,
+  Round2State,
+  Round3State,
+  Round4State,
+} from "@/types/game";
 
 export interface IGameState extends mongoose.Document {
   round: Round;
@@ -11,6 +19,7 @@ export interface IGameState extends mongoose.Document {
   teams: TeamScore[];
   round2State?: Round2State;
   round3State?: Round3State;
+  round4State?: Round4State;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -84,6 +93,72 @@ const Round3StateSchema = new Schema(
   { _id: false, strict: false }
 );
 
+const Round4BuzzInfoSchema = new Schema(
+  {
+    teamId: { type: String, required: true },
+    buzzedAt: { type: Number, required: true },
+  },
+  { _id: false }
+);
+
+const Round4StealWindowSchema = new Schema(
+  {
+    active: { type: Boolean, required: true },
+    endsAt: { type: Number, required: true },
+    buzzLockedTeamId: { type: String },
+    buzzedTeams: [Round4BuzzInfoSchema],
+  },
+  { _id: false }
+);
+
+const Round4StealAnswerSchema = new Schema(
+  {
+    teamId: { type: String, required: true },
+    answer: { type: String, required: true },
+    submittedAt: { type: Number, required: true },
+  },
+  { _id: false }
+);
+
+const Round4QuestionRefSchema = new Schema(
+  {
+    questionId: { type: String, required: true },
+    points: { type: Number, required: true },
+  },
+  { _id: false }
+);
+
+const Round4StateSchema = new Schema(
+  {
+    turnIndex: { type: Number, required: true, default: 0 },
+    currentTeamId: { type: String },
+    selectedPackage: { type: Number },
+    questionPattern: [{ type: Number }],
+    currentQuestionIndex: { type: Number },
+    questions: [Round4QuestionRefSchema],
+    starUsages: {
+      type: Map,
+      of: new Schema(
+        {
+          used: { type: Boolean, required: true, default: false },
+          questionIndex: { type: Number },
+        },
+        { _id: false }
+      ),
+      default: {},
+    },
+    usedQuestionIdsByPoints: {
+      10: { type: [String], default: [] },
+      20: { type: [String], default: [] },
+      30: { type: [String], default: [] },
+    },
+    lastMainAnswer: { type: String },
+    stealWindow: Round4StealWindowSchema,
+    stealAnswer: Round4StealAnswerSchema,
+  },
+  { _id: false, strict: false }
+);
+
 const GameStateSchema = new Schema<IGameState>(
   {
     round: {
@@ -122,6 +197,20 @@ const GameStateSchema = new Schema<IGameState>(
         "ROUND3_JUDGING",
         "ROUND3_RESULTS",
         "ROUND3_END",
+        // Round 4 phases
+        "R4_IDLE",
+        "R4_TURN_SELECT_PACKAGE",
+        "R4_TURN_PICK_QUESTIONS",
+        "R4_STAR_CONFIRMATION",
+        "R4_QUESTION_SHOW",
+        "R4_QUESTION_LOCK_MAIN",
+        "R4_JUDGE_MAIN",
+        "R4_STEAL_WINDOW",
+        "R4_STEAL_LOCKED",
+        "R4_JUDGE_STEAL",
+        "R4_NEXT_QUESTION",
+        "R4_NEXT_TEAM",
+        "R4_END",
       ],
       default: "IDLE",
     },
@@ -132,6 +221,7 @@ const GameStateSchema = new Schema<IGameState>(
     teams: [TeamScoreSchema],
     round2State: Round2StateSchema,
     round3State: Round3StateSchema,
+    round4State: Round4StateSchema,
   },
   { timestamps: true }
 );

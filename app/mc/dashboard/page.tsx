@@ -22,12 +22,13 @@ const ROUNDS: { value: Round; label: string }[] = [
   { value: "ROUND1", label: "Vòng 1" },
   { value: "ROUND2", label: "Vòng 2" },
   { value: "ROUND3", label: "Vòng 3" },
-  // { value: "ROUND4", label: "Vòng 4" },
+  { value: "ROUND4", label: "Vòng 4" },
 ];
 
 export default function MCDashboardPage() {
   const router = useRouter();
   const state = useGameStore((state) => state.state);
+  const serverTimeOffset = useGameStore((state) => state.serverTimeOffset);
   const [teams, setTeams] = useState<any[]>([]);
   const [packages, setPackages] = useState<any[]>([]);
   const [question, setQuestion] = useState<any>(null);
@@ -43,6 +44,7 @@ export default function MCDashboardPage() {
   const [isSwitchingRound, setIsSwitchingRound] = useState(false);
   const [isLoadingPackages, setIsLoadingPackages] = useState(false);
   const [isLoadingState, setIsLoadingState] = useState(true);
+  const [isJudging, setIsJudging] = useState(false);
   const { confirm } = useConfirm();
 
   useHydrateGameState();
@@ -360,35 +362,45 @@ export default function MCDashboardPage() {
   async function judgeQuestion(result: "CORRECT" | "WRONG", teamId?: string) {
     if (!state) return;
     if (!state.currentQuestionId && state.round !== "ROUND2") return;
+    if (isJudging) return; // Prevent double click
 
-    if (state.round === "ROUND2") {
-      const targetTeamId = teamId || selectedTeamIdForJudging;
-      if (!targetTeamId) {
-        alert("Vui lòng chọn đội để chấm");
-        return;
-      }
-      const res = await fetch("/api/game-control/round2/judge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          isCorrect: result === "CORRECT",
-          teamId: targetTeamId,
-        }),
-      });
-      
-      if (res.ok) {
-        // Wait a bit for state to update, then check remaining answers
-        // The useEffect will handle selecting next team and keeping modal open
-        // Modal will only close when pendingAnswers becomes empty (handled by useEffect)
-      }
-    } else {
-      if (state.currentQuestionId) {
-        await fetch("/api/game-control/question/judge", {
+    setIsJudging(true);
+    try {
+      if (state.round === "ROUND2") {
+        const targetTeamId = teamId || selectedTeamIdForJudging;
+        if (!targetTeamId) {
+          alert("Vui lòng chọn đội để chấm");
+          return;
+        }
+        const res = await fetch("/api/game-control/round2/judge", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ questionId: state.currentQuestionId, result }),
+          body: JSON.stringify({ 
+            isCorrect: result === "CORRECT",
+            teamId: targetTeamId,
+          }),
         });
+        
+        if (res.ok) {
+          // Wait a bit for state to update, then check remaining answers
+          // The useEffect will handle selecting next team and keeping modal open
+          // Modal will only close when pendingAnswers becomes empty (handled by useEffect)
+        }
+      } else {
+        if (state.currentQuestionId) {
+          const res = await fetch("/api/game-control/question/judge", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ questionId: state.currentQuestionId, result }),
+          });
+          if (!res.ok) {
+            const error = await res.json();
+            alert(error.error || "Lỗi khi chấm điểm");
+          }
+        }
       }
+    } finally {
+      setIsJudging(false);
     }
   }
 
@@ -425,6 +437,14 @@ export default function MCDashboardPage() {
         await fetch("/api/game-control/round3/start-round", {
           method: "POST",
         });
+      } else if (round === "ROUND4") {
+        await fetch("/api/game-control/round4/start", {
+          method: "POST",
+        });
+        // Round 4 doesn't have package selection, navigate directly to round4 page
+        await new Promise(resolve => setTimeout(resolve, 100));
+        router.push("/mc/round4");
+        return;
       }
       
       // Wait a bit for state to sync before updating selectedRound
@@ -481,6 +501,7 @@ export default function MCDashboardPage() {
                              (!isGameActive && (!selectedRound && !state?.round));
   const showTeamPackageSelection = !userClearedRound && (isGameActive || !!selectedRound || !!state?.round);
   const isRound2 = state?.round === "ROUND2" || selectedRound === "ROUND2";
+  const isRound4 = state?.round === "ROUND4" || selectedRound === "ROUND4";
 
   const availableTeams = teams.filter((team) => {
     if (!state?.teams) return true;
@@ -501,7 +522,7 @@ export default function MCDashboardPage() {
   const timerExpired =
     state?.questionTimer &&
     state.questionTimer.running &&
-    Date.now() > state.questionTimer.endsAt;
+    (Date.now() + serverTimeOffset) > state.questionTimer.endsAt;
 
   // Round2 specific data
   const round2Meta = packageData?.round2Meta;
@@ -625,6 +646,7 @@ export default function MCDashboardPage() {
             </Card>
           )}
 
+          {!isRound4 && (
           <Card>
             <h2 className="text-xl font-bold mb-4">Chọn gói câu hỏi</h2>
             {isLoadingPackages ? (
@@ -721,6 +743,7 @@ export default function MCDashboardPage() {
             </div>
             )}
           </Card>
+          )}
 
           {selectedPackageId && 
            (((state?.round === "ROUND1" || selectedRound === "ROUND1") && selectedTeamId) || 
@@ -1214,15 +1237,17 @@ export default function MCDashboardPage() {
             <div className="flex gap-4 mt-4">
               <button
                 onClick={() => judgeQuestion("CORRECT")}
-                className="flex-1 py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 rounded-xl font-bold text-lg text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+                disabled={isJudging}
+                className="flex-1 py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 rounded-xl font-bold text-lg text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
-                ✓ ĐÚNG
+                {isJudging ? "Đang xử lý..." : "✓ ĐÚNG"}
               </button>
               <button
                 onClick={() => judgeQuestion("WRONG")}
-                className="flex-1 py-4 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-400 hover:to-rose-500 rounded-xl font-bold text-lg text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+                disabled={isJudging}
+                className="flex-1 py-4 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-400 hover:to-rose-500 rounded-xl font-bold text-lg text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
-                ✗ SAI
+                {isJudging ? "Đang xử lý..." : "✗ SAI"}
               </button>
             </div>
           </Card>
@@ -1312,15 +1337,17 @@ export default function MCDashboardPage() {
           <div className="flex gap-4">
             <button
               onClick={() => judgeQuestion("CORRECT")}
-              className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 rounded-xl font-bold text-white"
+              disabled={isJudging}
+              className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 rounded-xl font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              ✓ CÔNG NHẬN ĐÚNG
+              {isJudging ? "Đang xử lý..." : "✓ CÔNG NHẬN ĐÚNG"}
             </button>
             <button
               onClick={() => judgeQuestion("WRONG")}
-              className="flex-1 py-3 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-400 hover:to-rose-500 rounded-xl font-bold text-white"
+              disabled={isJudging}
+              className="flex-1 py-3 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-400 hover:to-rose-500 rounded-xl font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              ✗ KHÔNG CÔNG NHẬN
+              {isJudging ? "Đang xử lý..." : "✗ KHÔNG CÔNG NHẬN"}
             </button>
           </div>
             </>

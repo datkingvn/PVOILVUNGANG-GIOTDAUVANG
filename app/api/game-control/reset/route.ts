@@ -60,7 +60,7 @@ export async function POST() {
       }
     );
 
-    // Reset game state
+    // Reset game state (bao gồm cả Round 4)
     let gameState = await GameState.findOne();
     if (gameState) {
       gameState.round = "ROUND1";
@@ -71,6 +71,7 @@ export async function POST() {
       gameState.questionTimer = undefined;
       gameState.round2State = undefined;
       gameState.round3State = undefined;
+      gameState.round4State = undefined;
 
       // Reset team scores and status
       gameState.teams = gameState.teams.map((team: TeamScore) => ({

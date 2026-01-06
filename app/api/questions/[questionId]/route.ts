@@ -30,6 +30,7 @@ export async function GET(
       answerText: question.answerText || null,
       acceptedAnswers: question.acceptedAnswers || [],
       arrangeSteps: question.arrangeSteps || [],
+      points: (question as any).points ?? null,
     };
 
     return NextResponse.json(serializedQuestion);
@@ -45,14 +46,17 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ questionId: string }> }
 ) {
-  let data: { 
-    index?: number; 
-    text?: string;
-    answerText?: string;
-    acceptedAnswers?: string[];
-    type?: "reasoning" | "video" | "arrange";
-    arrangeSteps?: Array<{ label: string; text: string }>;
-  } | undefined;
+  let data:
+    | {
+        index?: number;
+        text?: string;
+        answerText?: string;
+        acceptedAnswers?: string[];
+        type?: "reasoning" | "video" | "arrange";
+        arrangeSteps?: Array<{ label: string; text: string }>;
+        points?: number;
+      }
+    | undefined;
   
   try {
     await requireMC();
@@ -104,6 +108,11 @@ export async function PATCH(
 
     if (data.arrangeSteps !== undefined) {
       question.arrangeSteps = data.arrangeSteps;
+    }
+
+    // Round 4: update points if provided
+    if (data.points !== undefined) {
+      (question as any).points = data.points;
     }
 
     await question.save();

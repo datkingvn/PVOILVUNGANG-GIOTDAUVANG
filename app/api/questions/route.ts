@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
       answerText: q.answerText || null,
       acceptedAnswers: q.acceptedAnswers || [],
       arrangeSteps: q.arrangeSteps || [],
+      points: q.points ?? null,
     }));
     return NextResponse.json(serializedQuestions);
   } catch (error: any) {
@@ -46,11 +47,30 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const parsed = createQuestionSchema.parse(body);
-    const { text, packageId, round } = parsed;
+    const { text, packageId, round, points } = parsed;
     index = parsed.index;
 
-    // Verify package exists and round matches
-    const pkg = await Package.findById(packageId);
+    // Determine effective packageId:
+    // - ROUND1/2/3: dùng đúng packageId được gửi từ client
+    // - ROUND4: tự động dùng (hoặc tạo) một Package ẩn cho ROUND4 để thỏa schema,
+    //   MC không cần quản lý gói cho vòng này.
+    let effectivePackage = null as any;
+    if (round === "ROUND4") {
+      effectivePackage =
+        (await Package.findOne({ round: "ROUND4", number: 1 })) ||
+        (await Package.create({
+          number: 1,
+          round: "ROUND4",
+          status: "unassigned",
+          currentQuestionIndex: 0,
+          questions: [],
+          history: [],
+        }));
+    } else {
+      effectivePackage = await Package.findById(packageId);
+    }
+
+    const pkg = effectivePackage;
     if (!pkg) {
       return NextResponse.json(
         { error: "Không tìm thấy gói câu hỏi" },
@@ -66,7 +86,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if index already exists (unique index will catch this, but we can provide better error)
-    const existing = await Question.findOne({ packageId, index });
+    const existing = await Question.findOne({ packageId: pkg._id, index });
     if (existing) {
       return NextResponse.json(
         { error: `Câu hỏi số ${index} đã tồn tại trong gói này` },
@@ -77,7 +97,7 @@ export async function POST(request: NextRequest) {
     // Prepare question data with Round 3 specific fields
     const questionData: any = {
       text,
-      packageId,
+      packageId: pkg._id,
       index,
       round,
     };
@@ -96,6 +116,11 @@ export async function POST(request: NextRequest) {
       if (body.arrangeSteps && Array.isArray(body.arrangeSteps)) {
         questionData.arrangeSteps = body.arrangeSteps;
       }
+    }
+
+    // Round 4 specific fields
+    if (round === "ROUND4" && points) {
+      questionData.points = points;
     }
 
     const question = await Question.create(questionData);

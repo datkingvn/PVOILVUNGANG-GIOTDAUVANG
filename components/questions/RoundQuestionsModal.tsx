@@ -18,6 +18,7 @@ interface Question {
   text: string;
   index: number;
   packageId: string;
+  points?: number;
 }
 
 interface RoundQuestionsModalProps {
@@ -36,8 +37,9 @@ export function RoundQuestionsModal({
   const [selectedPackageId, setSelectedPackageId] = useState<string>("");
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
-  const [questionForm, setQuestionForm] = useState({ 
-    text: "", 
+  const [activePointTab, setActivePointTab] = useState<10 | 20 | 30>(10);
+  const [questionForm, setQuestionForm] = useState({
+    text: "",
     index: 1,
     type: "reasoning" as "reasoning" | "video" | "arrange",
     videoFile: null as File | null,
@@ -49,6 +51,7 @@ export function RoundQuestionsModal({
     ],
     answerText: "",
     acceptedAnswers: [] as string[],
+    points: undefined as 10 | 20 | 30 | undefined,
   });
   const [newAcceptedAnswer, setNewAcceptedAnswer] = useState("");
   const [uploadingVideo, setUploadingVideo] = useState(false);
@@ -111,6 +114,13 @@ export function RoundQuestionsModal({
 
   async function loadPackages() {
     try {
+      // ROUND4: không dùng Package, chỉ dùng Question Bank
+      if (round === "ROUND4") {
+        setPackages([]);
+        setSelectedPackageId("ROUND4_BANK");
+        return;
+      }
+
       const res = await fetch(`/api/packages?round=${round}`);
       if (res.ok) {
         const data = await res.json();
@@ -121,6 +131,41 @@ export function RoundQuestionsModal({
       }
     } catch (error) {
       console.error("Failed to load packages:", error);
+    }
+  }
+
+  async function handleCreatePackage() {
+    try {
+      // Tìm số gói lớn nhất hiện tại để +1
+      const nextNumber =
+        packages.length > 0
+          ? Math.max(...packages.map((p) => p.number)) + 1
+          : 1;
+
+      const res = await fetch("/api/packages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          number: nextNumber,
+          round,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast(data.error || "Tạo gói câu hỏi thất bại", "error");
+        return;
+      }
+
+      const newPkg = data as Package;
+      const updated = [...packages, newPkg].sort((a, b) => a.number - b.number);
+      setPackages(updated);
+      setSelectedPackageId(newPkg._id);
+      showToast(`Đã tạo gói ${newPkg.number} cho ${round}`, "success");
+    } catch (error) {
+      console.error("Failed to create package:", error);
+      showToast("Lỗi khi tạo gói câu hỏi", "error");
     }
   }
 
@@ -158,8 +203,13 @@ export function RoundQuestionsModal({
   }
 
   async function handleCreateQuestion() {
-    if (!selectedPackageId || !questionForm.text.trim()) {
+    if (!questionForm.text.trim()) {
       showToast("Vui lòng nhập nội dung câu hỏi", "error");
+      return;
+    }
+
+    if (round === "ROUND4" && !questionForm.points) {
+      showToast("Vui lòng chọn mức điểm (10 / 20 / 30)", "error");
       return;
     }
 
@@ -175,7 +225,7 @@ export function RoundQuestionsModal({
       // Create question first
       const questionData: any = {
         text: questionForm.text,
-        packageId: selectedPackageId,
+        packageId: selectedPackageId === "ROUND4_BANK" ? "000000000000000000000000" : selectedPackageId,
         index: questionForm.index,
         round,
       };
@@ -192,6 +242,10 @@ export function RoundQuestionsModal({
         if (questionForm.acceptedAnswers.length > 0) {
           questionData.acceptedAnswers = questionForm.acceptedAnswers.filter(a => a.trim());
         }
+      }
+
+      if (round === "ROUND4" && questionForm.points) {
+        questionData.points = questionForm.points;
       }
 
       const res = await fetch("/api/questions", {
@@ -234,8 +288,8 @@ export function RoundQuestionsModal({
 
       showToast("Tạo câu hỏi thành công", "success");
       setIsQuestionModalOpen(false);
-      setQuestionForm({ 
-        text: "", 
+      setQuestionForm({
+        text: "",
         index: 1,
         type: "reasoning",
         videoFile: null,
@@ -247,6 +301,8 @@ export function RoundQuestionsModal({
         ],
         answerText: "",
         acceptedAnswers: [],
+        // ROUND4: reset về tab hiện tại để mặc định điểm đúng tab
+        points: round === "ROUND4" ? activePointTab : undefined,
       });
       setNewAcceptedAnswer("");
       loadAllQuestions();
@@ -279,6 +335,10 @@ export function RoundQuestionsModal({
         if (questionForm.acceptedAnswers.length > 0) {
           updateData.acceptedAnswers = questionForm.acceptedAnswers.filter(a => a.trim());
         }
+      }
+
+      if (round === "ROUND4" && questionForm.points) {
+        updateData.points = questionForm.points;
       }
 
       const res = await fetch(`/api/questions/${editingQuestion._id}`, {
@@ -323,8 +383,8 @@ export function RoundQuestionsModal({
 
       setIsQuestionModalOpen(false);
       setEditingQuestion(null);
-      setQuestionForm({ 
-        text: "", 
+      setQuestionForm({
+        text: "",
         index: 1,
         type: "reasoning",
         videoFile: null,
@@ -336,6 +396,8 @@ export function RoundQuestionsModal({
         ],
         answerText: "",
         acceptedAnswers: [],
+        // ROUND4: reset theo tab đang mở để modal kế tiếp hiển thị đúng mặc định
+        points: round === "ROUND4" ? activePointTab : undefined,
       });
       setNewAcceptedAnswer("");
       loadAllQuestions();
@@ -363,9 +425,8 @@ export function RoundQuestionsModal({
   }
 
   function openCreateModal() {
-    const maxIndex = round === "ROUND3" ? 4 : 12;
     let nextIndex = 1;
-    
+
     if (round === "ROUND3") {
       // Tìm index đầu tiên chưa được sử dụng (1-4)
       const usedIndices = new Set(
@@ -379,13 +440,20 @@ export function RoundQuestionsModal({
           break;
         }
       }
+    } else if (round === "ROUND4") {
+      // ROUND4 không giới hạn, nên lấy index cao nhất + 1 trong ngân hàng
+      const maxExisting = questions.length
+        ? Math.max(...questions.map((q) => q.index))
+        : 0;
+      nextIndex = maxExisting + 1;
     } else {
-      nextIndex = questions.length > 0 ? questions.length + 1 : 1;
+      // ROUND1/2: vẫn ưu tiên gợi ý tiếp nối, nhưng giới hạn 12 ở input
+      nextIndex = questions.filter((q) => q.packageId === selectedPackageId).length + 1;
     }
-    
-    setQuestionForm({ 
-      text: "", 
-      index: Math.min(nextIndex, maxIndex),
+
+    setQuestionForm({
+      text: "",
+      index: nextIndex,
       type: "reasoning",
       videoFile: null,
       arrangeSteps: [
@@ -396,6 +464,8 @@ export function RoundQuestionsModal({
       ],
       answerText: "",
       acceptedAnswers: [],
+      // ROUND4: mặc định theo tab đang mở (10/20/30)
+      points: round === "ROUND4" ? activePointTab : undefined,
     });
     setNewAcceptedAnswer("");
     setEditingQuestion(null);
@@ -422,16 +492,18 @@ export function RoundQuestionsModal({
           index: q.index ?? question.index,
           type: round === "ROUND3" ? (q.type || "reasoning") : "reasoning",
           videoFile: null,
-          arrangeSteps: round === "ROUND3" && q.arrangeSteps 
-            ? q.arrangeSteps 
-            : [
-                { label: "A", text: "" },
-                { label: "B", text: "" },
-                { label: "C", text: "" },
-                { label: "D", text: "" },
-              ],
+          arrangeSteps:
+            round === "ROUND3" && q.arrangeSteps
+              ? q.arrangeSteps
+              : [
+                  { label: "A", text: "" },
+                  { label: "B", text: "" },
+                  { label: "C", text: "" },
+                  { label: "D", text: "" },
+                ],
           answerText: q.answerText || "",
           acceptedAnswers: Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers : [],
+          points: round === "ROUND4" ? (q.points as 10 | 20 | 30 | undefined) : undefined,
         });
         setNewAcceptedAnswer("");
         // Don't open modal - form edit inline is shown below
@@ -443,16 +515,18 @@ export function RoundQuestionsModal({
           index: question.index,
           type: round === "ROUND3" ? (q.type || "reasoning") : "reasoning",
           videoFile: null,
-          arrangeSteps: round === "ROUND3" && q.arrangeSteps 
-            ? q.arrangeSteps 
-            : [
-                { label: "A", text: "" },
-                { label: "B", text: "" },
-                { label: "C", text: "" },
-                { label: "D", text: "" },
-              ],
+          arrangeSteps:
+            round === "ROUND3" && q.arrangeSteps
+              ? q.arrangeSteps
+              : [
+                  { label: "A", text: "" },
+                  { label: "B", text: "" },
+                  { label: "C", text: "" },
+                  { label: "D", text: "" },
+                ],
           answerText: q.answerText || "",
           acceptedAnswers: Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers : [],
+          points: round === "ROUND4" ? (q.points as 10 | 20 | 30 | undefined) : undefined,
         });
         setNewAcceptedAnswer("");
         // Don't open modal - form edit inline is shown below
@@ -466,16 +540,18 @@ export function RoundQuestionsModal({
         index: question.index,
         type: round === "ROUND3" ? (q.type || "reasoning") : "reasoning",
         videoFile: null,
-        arrangeSteps: round === "ROUND3" && q.arrangeSteps 
-          ? q.arrangeSteps 
-          : [
-              { label: "A", text: "" },
-              { label: "B", text: "" },
-              { label: "C", text: "" },
-              { label: "D", text: "" },
-            ],
+        arrangeSteps:
+          round === "ROUND3" && q.arrangeSteps
+            ? q.arrangeSteps
+            : [
+                { label: "A", text: "" },
+                { label: "B", text: "" },
+                { label: "C", text: "" },
+                { label: "D", text: "" },
+              ],
         answerText: q.answerText || "",
         acceptedAnswers: Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers : [],
+        points: round === "ROUND4" ? (q.points as 10 | 20 | 30 | undefined) : undefined,
       });
       setNewAcceptedAnswer("");
       // Don't open modal - form edit inline is shown below
@@ -497,6 +573,7 @@ export function RoundQuestionsModal({
       ],
       answerText: "",
       acceptedAnswers: [],
+      points: round === "ROUND4" ? 10 : undefined,
     });
     setNewAcceptedAnswer("");
   }
@@ -615,17 +692,24 @@ export function RoundQuestionsModal({
                 
                 <div>
                   <label className="block text-white font-semibold mb-2 text-sm">
-                    Số thứ tự {round === "ROUND3" ? "(1-4)" : "(1-12)"}
+                    {round === "ROUND3"
+                      ? "Số thứ tự (1-4)"
+                      : round === "ROUND4"
+                      ? "Số thứ tự (>= 1, không giới hạn)"
+                      : "Số thứ tự (1-12)"}
                   </label>
                   <input
                     type="number"
                     min="1"
-                    max={round === "ROUND3" ? 4 : 12}
+                    // ROUND3: giới hạn 4; ROUND1/2: 12; ROUND4: không đặt max
+                    max={round === "ROUND3" ? 4 : round === "ROUND4" ? undefined : 12}
                     value={questionForm.index}
                     onChange={(e) =>
                       setQuestionForm({
                         ...questionForm,
-                        index: parseInt(e.target.value) || 1,
+                        index: Number.isNaN(parseInt(e.target.value))
+                          ? 1
+                          : parseInt(e.target.value),
                       })
                     }
                     className="w-full px-4 py-2 bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
@@ -923,48 +1007,69 @@ export function RoundQuestionsModal({
         maxWidth="80rem"
       >
         <div className="space-y-6">
-          {/* Package selector - Ẩn cho Round 3 */}
-          {round !== "ROUND3" && (
+          {/* Package selector - Ẩn cho Round 3 và Round 4 (Round 4 dùng Question Bank) */}
+          {round !== "ROUND3" && round !== "ROUND4" && (
             <div>
               <label className="block text-white font-semibold mb-3 text-lg">
                 Chọn gói câu hỏi
               </label>
               {packages.length === 0 ? (
-                <div className="p-4 rounded-xl border border-gray-700 bg-gray-900/60 text-sm text-gray-400">
-                  Chưa có gói câu hỏi. Vui lòng tạo gói câu hỏi trước.
+                <div className="p-4 rounded-xl border border-gray-700 bg-gray-900/60 text-sm text-gray-200 space-y-3">
+                  <p>Chưa có gói câu hỏi cho vòng này.</p>
+                  <button
+                    type="button"
+                    onClick={handleCreatePackage}
+                    className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 rounded-lg font-semibold text-white transition-colors"
+                  >
+                    Tạo gói câu hỏi đầu tiên
+                  </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-4 gap-3">
-                  {packages.map((pkg) => {
-                    const pkgQuestionCount = questions.filter(
-                      (q) => q.packageId === pkg._id
-                    ).length;
-                    const isSelected = selectedPackageId === pkg._id;
+                <>
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="text-sm text-gray-300">
+                      Đã có {packages.length} gói cho {round}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCreatePackage}
+                      className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs font-medium text-gray-100 border border-gray-600"
+                    >
+                      + Thêm gói
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-4 gap-3">
+                    {packages.map((pkg) => {
+                      const pkgQuestionCount = questions.filter(
+                        (q) => q.packageId === pkg._id
+                      ).length;
+                      const isSelected = selectedPackageId === pkg._id;
 
-                    return (
-                      <button
-                        key={pkg._id}
-                        onClick={() => setSelectedPackageId(pkg._id)}
-                        className={`p-4 rounded-xl border-2 transition-all transform hover:scale-105 ${
-                          isSelected
-                            ? "bg-gradient-to-br from-cyan-600 via-blue-600 to-indigo-600 border-cyan-400 shadow-lg shadow-cyan-500/50"
-                            : "bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-cyan-500/50 hover:shadow-md"
-                        }`}
-                      >
-                        <div className="font-bold text-white text-lg">
-                          Gói {pkg.number}
-                        </div>
-                        <div
-                          className={`text-sm mt-1 ${
-                            isSelected ? "text-cyan-100" : "text-gray-400"
+                      return (
+                        <button
+                          key={pkg._id}
+                          onClick={() => setSelectedPackageId(pkg._id)}
+                          className={`p-4 rounded-xl border-2 transition-all transform hover:scale-105 ${
+                            isSelected
+                              ? "bg-gradient-to-br from-cyan-600 via-blue-600 to-indigo-600 border-cyan-400 shadow-lg shadow-cyan-500/50"
+                              : "bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 hover:border-cyan-500/50 hover:shadow-md"
                           }`}
                         >
-                          {pkgQuestionCount} câu
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                          <div className="font-bold text-white text-lg">
+                            Gói {pkg.number}
+                          </div>
+                          <div
+                            className={`text-sm mt-1 ${
+                              isSelected ? "text-cyan-100" : "text-gray-400"
+                            }`}
+                          >
+                            {pkgQuestionCount} câu
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -979,8 +1084,79 @@ export function RoundQuestionsModal({
             </div>
           )}
 
-          {/* Questions list */}
-          {selectedPackageId && (
+          {/* ROUND4: Question bank theo điểm */}
+          {round === "ROUND4" && (
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-white mb-2">
+                    Ngân hàng câu hỏi - ROUND4
+                  </h3>
+                  <div className="inline-flex rounded-xl bg-gray-900/60 border border-gray-700 p-1">
+                    {[10, 20, 30].map((pts) => {
+                      const count = questions.filter((q) => q.points === pts).length;
+                      const isActive = activePointTab === pts;
+                      const activeClasses =
+                        pts === 10
+                          ? "bg-sky-500 text-black"
+                          : pts === 20
+                          ? "bg-amber-500 text-black"
+                          : "bg-violet-500 text-black";
+                      return (
+                        <button
+                          key={pts}
+                          type="button"
+                          onClick={() => setActivePointTab(pts as 10 | 20 | 30)}
+                          className={`px-4 py-1.5 text-sm font-semibold rounded-lg transition-all ${
+                            isActive
+                              ? `${activeClasses} shadow`
+                              : "text-gray-300 hover:text-amber-200"
+                          }`}
+                        >
+                          {pts} điểm ({count})
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <button
+                  onClick={openCreateModal}
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 rounded-xl font-semibold text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all flex items-center gap-2"
+                >
+                  <Plus size={20} />
+                  Thêm câu hỏi
+                </button>
+              </div>
+
+              {(() => {
+                const pts = activePointTab;
+                const list = questions
+                  .filter((q) => q.points === pts)
+                  .sort((a, b) => a.index - b.index);
+                return (
+                  <div className="mb-6">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="text-lg font-semibold text-amber-300">
+                        Câu hỏi {pts} điểm ({list.length})
+                      </div>
+                    </div>
+                    {list.length === 0 ? (
+                      <div className="p-4 rounded-xl border border-dashed border-gray-700 text-sm text-gray-400">
+                        Chưa có câu hỏi {pts} điểm.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {list.map((q) => renderQuestionItem(q))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* Questions list cho Round khác */}
+          {round !== "ROUND4" && selectedPackageId && (
             <div>
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold text-white">
@@ -1052,6 +1228,7 @@ export function RoundQuestionsModal({
                                   ],
                                   answerText: "",
                                   acceptedAnswers: [],
+                                  points: undefined, // ROUND3 doesn't use points
                                 });
                                 setNewAcceptedAnswer("");
                                 setIsQuestionModalOpen(true);
@@ -1102,6 +1279,7 @@ export function RoundQuestionsModal({
             ],
             answerText: "",
             acceptedAnswers: [],
+            points: round === "ROUND4" ? activePointTab : undefined,
           });
           setNewAcceptedAnswer("");
         }}
@@ -1110,19 +1288,61 @@ export function RoundQuestionsModal({
         <div className="space-y-5">
           <div>
             <label className="block text-white font-semibold mb-2">
-              Số thứ tự {round === "ROUND3" ? "(1-4)" : "(1-12)"}
+              {round === "ROUND3"
+                ? "Số thứ tự (1-4)"
+                : round === "ROUND4"
+                ? "Số thứ tự (>= 1, không giới hạn)"
+                : "Số thứ tự (1-12)"}
             </label>
             <input
               type="number"
               min="1"
-              max={round === "ROUND3" ? 4 : 12}
+              // ROUND3 vẫn giới hạn 4, ROUND1/2 giới hạn 12, ROUND4 không set max để không giới hạn
+              max={round === "ROUND3" ? 4 : round === "ROUND4" ? undefined : 12}
               value={questionForm.index}
               onChange={(e) =>
-                setQuestionForm({ ...questionForm, index: parseInt(e.target.value) || 1 })
+                setQuestionForm({
+                  ...questionForm,
+                  index: Number.isNaN(parseInt(e.target.value))
+                    ? 1
+                    : parseInt(e.target.value),
+                })
               }
               className="w-full px-4 py-3 bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
             />
           </div>
+
+          {round === "ROUND4" && (
+            <div>
+              <label className="block text-white font-semibold mb-2">
+                Mức điểm câu hỏi
+              </label>
+              <div className="flex gap-3">
+                {[10, 20, 30].map((pts) => {
+                  const isActive = questionForm.points === pts;
+                  return (
+                    <button
+                      key={pts}
+                      type="button"
+                      onClick={() =>
+                        setQuestionForm({
+                          ...questionForm,
+                          points: pts as 10 | 20 | 30,
+                        })
+                      }
+                      className={`flex-1 px-4 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${
+                        isActive
+                          ? "bg-gradient-to-r from-amber-500 to-yellow-500 border-amber-300 text-black shadow-lg"
+                          : "bg-gradient-to-r from-gray-800 to-gray-900 border-gray-700 text-gray-200 hover:border-amber-400 hover:text-amber-200"
+                      }`}
+                    >
+                      {pts} điểm
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {round === "ROUND3" && (
             <div>

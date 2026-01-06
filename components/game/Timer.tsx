@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useGameStore } from "@/store/gameStore";
 import type { QuestionTimer } from "@/types/game";
 
 interface TimerProps {
@@ -10,24 +11,38 @@ interface TimerProps {
 
 export function Timer({ timer, size = "md" }: TimerProps) {
   const [seconds, setSeconds] = useState<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const serverTimeOffset = useGameStore((state) => state.serverTimeOffset);
 
   useEffect(() => {
+    // Hủy loop cũ nếu timer thay đổi
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+
     if (!timer || !timer.running) {
       setSeconds(null);
       return;
     }
 
     const updateTimer = () => {
-      const now = Date.now();
+      // Use server time offset to sync with server time
+      const now = Date.now() + serverTimeOffset;
       const remaining = Math.max(0, Math.floor((timer.endsAt - now) / 1000));
       setSeconds(remaining);
+      rafRef.current = requestAnimationFrame(updateTimer);
     };
 
     updateTimer();
-    const interval = setInterval(updateTimer, 100);
 
-    return () => clearInterval(interval);
-  }, [timer]);
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [timer, serverTimeOffset]);
 
   if (seconds === null) return null;
 

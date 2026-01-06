@@ -7,22 +7,33 @@ import type { GameState } from "@/types/game";
 
 export function usePusherGameState() {
   const setState = useGameStore((state) => state.setState);
+  const setServerTimeOffset = useGameStore((state) => state.setServerTimeOffset);
 
   useEffect(() => {
     const channel = pusherClient.subscribe("game-state");
-
-    channel.bind("state:update", (data: { state: GameState }) => {
+    const handleUpdate = (data: { state: GameState; serverTime?: number }) => {
       setState(data.state);
-    });
+      
+      // Calculate server time offset if serverTime is provided
+      if (data.serverTime !== undefined) {
+        const clientTime = Date.now();
+        const offset = data.serverTime - clientTime;
+        setServerTimeOffset(offset);
+      }
+    };
+
+    channel.bind("state:update", handleUpdate);
 
     return () => {
+      channel.unbind("state:update", handleUpdate);
       pusherClient.unsubscribe("game-state");
     };
-  }, [setState]);
+  }, [setState, setServerTimeOffset]);
 }
 
 export async function useHydrateGameState() {
   const setState = useGameStore((state) => state.setState);
+  const setServerTimeOffset = useGameStore((state) => state.setServerTimeOffset);
 
   useEffect(() => {
     async function fetchState() {
@@ -32,12 +43,19 @@ export async function useHydrateGameState() {
         if (data.state) {
           setState(data.state);
         }
+        
+        // Calculate server time offset if serverTime is provided
+        if (data.serverTime !== undefined) {
+          const clientTime = Date.now();
+          const offset = data.serverTime - clientTime;
+          setServerTimeOffset(offset);
+        }
       } catch (error) {
         console.error("Failed to fetch game state:", error);
       }
     }
 
     fetchState();
-  }, [setState]);
+  }, [setState, setServerTimeOffset]);
 }
 
