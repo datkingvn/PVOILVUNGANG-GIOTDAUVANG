@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     
     // Preserve existing round2State fields - convert to plain object
     const existingRound2State = gameState.round2State 
-      ? (gameState.round2State.toObject ? gameState.round2State.toObject() : { ...gameState.round2State })
+      ? ((gameState.round2State as any).toObject ? (gameState.round2State as any).toObject() : { ...gameState.round2State })
       : {};
     
     // Use findOneAndUpdate with $set to ensure the update is applied

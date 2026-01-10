@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       for (const questionIndexKey of questionIndices) {
         const questionResults = questionResultsMap instanceof Map
           ? questionResultsMap.get(String(questionIndexKey)) || []
-          : questionResultsMap[String(questionIndexKey)] || [];
+          : (questionResultsMap as Record<string, any>)[String(questionIndexKey)] || [];
 
         questionResults.forEach((result: Round3AnswerResult) => {
           if (result.isCorrect && result.score) {
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       for (const questionIndexKey of questionIndices) {
         const questionResults = questionResultsMap instanceof Map
           ? questionResultsMap.get(String(questionIndexKey)) || []
-          : questionResultsMap[String(questionIndexKey)] || [];
+          : (questionResultsMap as Record<string, any>)[String(questionIndexKey)] || [];
 
         // Get all correct answers for this question
         const correctResults = questionResults.filter(
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
           if (questionResultsMap instanceof Map) {
             questionResultsMap.set(String(questionIndexKey), questionResults);
           } else {
-            questionResultsMap[String(questionIndexKey)] = questionResults;
+            (questionResultsMap as Record<string, any>)[String(questionIndexKey)] = questionResults;
           }
         }
       }
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       for (const questionIndexKey of questionIndices) {
         const questionResults = questionResultsMap instanceof Map
           ? questionResultsMap.get(String(questionIndexKey)) || []
-          : questionResultsMap[String(questionIndexKey)] || [];
+          : (questionResultsMap as Record<string, any>)[String(questionIndexKey)] || [];
 
         questionResults.forEach((result: Round3AnswerResult) => {
           if (result.isCorrect && result.score) {

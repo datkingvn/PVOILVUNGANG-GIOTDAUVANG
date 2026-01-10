@@ -108,27 +108,33 @@ export async function POST(request: NextRequest) {
       gameState.round3State = {
         currentQuestionIndex: 0,
         pendingAnswers: [],
-        questionResults: new Map(),
+        questionResults: {},
       };
     }
-    // Ensure questionResults is a Map (Mongoose Map)
+    // Ensure questionResults is initialized (Mongoose will convert to Map)
     if (!gameState.round3State.questionResults) {
-      gameState.round3State.questionResults = new Map();
+      gameState.round3State.questionResults = {};
     }
     // Convert to Map if it's an object
     if (!(gameState.round3State.questionResults instanceof Map)) {
       const map = new Map();
-      Object.keys(gameState.round3State.questionResults).forEach(key => {
-        map.set(key, gameState.round3State.questionResults[key]);
-      });
-      gameState.round3State.questionResults = map;
+      const questionResults = gameState.round3State.questionResults;
+      if (questionResults) {
+        Object.keys(questionResults).forEach(key => {
+          map.set(key, (questionResults as Record<string, any>)[key]);
+        });
+      }
+      gameState.round3State.questionResults = map as any;
     }
 
     const currentQuestionIndex = gameState.round3State.currentQuestionIndex ?? 0;
     const questionIndexKey = String(currentQuestionIndex); // Mongoose Map only supports string keys
     
-    if (!gameState.round3State.questionResults.has(questionIndexKey)) {
-      gameState.round3State.questionResults.set(questionIndexKey, []);
+    const questionResults = gameState.round3State.questionResults;
+    if (questionResults && questionResults instanceof Map) {
+      if (!questionResults.has(questionIndexKey)) {
+        questionResults.set(questionIndexKey, []);
+      }
     }
 
     // Auto-judge: Check if answer is correct
@@ -170,7 +176,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Add to questionResults immediately (auto-judged)
-    let questionResults = gameState.round3State.questionResults.get(questionIndexKey) || [];
+    const questionResultsMap = gameState.round3State.questionResults;
+    if (!questionResultsMap || !(questionResultsMap instanceof Map)) {
+      return NextResponse.json(
+        { error: "Question results không hợp lệ" },
+        { status: 500 }
+      );
+    }
+    
+    let currentQuestionResults = questionResultsMap.get(questionIndexKey) || [];
     const result: Round3AnswerResult = {
       teamId,
       isCorrect,
@@ -180,12 +194,12 @@ export async function POST(request: NextRequest) {
       judgedAt: now,
       answer: answer.trim(), // Store answer text for display
     };
-    questionResults.push(result);
+    currentQuestionResults.push(result);
     // Update Map with modified array
-    gameState.round3State.questionResults.set(questionIndexKey, questionResults);
+    questionResultsMap.set(questionIndexKey, currentQuestionResults);
 
     // Calculate scores for all correct answers based on submission order
-    const correctResults = questionResults.filter((r: Round3AnswerResult) => r.isCorrect);
+    const correctResults = currentQuestionResults.filter((r: Round3AnswerResult) => r.isCorrect);
     if (correctResults.length > 0) {
       // Sort correct answers by submission time
       const sortedCorrectResults = [...correctResults].sort(
@@ -194,7 +208,7 @@ export async function POST(request: NextRequest) {
 
       // Store old scores before recalculating
       const oldScores = new Map<string, number>();
-      questionResults.forEach((r: Round3AnswerResult) => {
+      currentQuestionResults.forEach((r: Round3AnswerResult) => {
         if (r.isCorrect) {
           oldScores.set(r.teamId, r.score || 0);
         }
@@ -219,7 +233,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Update Map with modified questionResults array after score calculation
-    gameState.round3State.questionResults.set(questionIndexKey, questionResults);
+    questionResultsMap.set(questionIndexKey, currentQuestionResults);
 
     // Update pending answers (remove this team's answer since it's already judged)
     gameState.round3State.pendingAnswers = updatedAnswers.filter(
@@ -229,7 +243,7 @@ export async function POST(request: NextRequest) {
     // Check if all teams have submitted
     // Get total number of teams
     const totalTeams = gameState.teams.length;
-    const submittedCount = questionResults.length;
+    const submittedCount = currentQuestionResults.length;
     
     // If all teams have submitted, automatically move to results phase
     if (submittedCount >= totalTeams) {
@@ -257,7 +271,7 @@ export async function POST(request: NextRequest) {
     await broadcastGameState();
 
     // Get the final result for this team (after score calculation)
-    const finalResult = questionResults.find((r: Round3AnswerResult) => r.teamId === teamId);
+    const finalResult = currentQuestionResults.find((r: Round3AnswerResult) => r.teamId === teamId);
 
     return NextResponse.json({
       success: true,
@@ -265,7 +279,7 @@ export async function POST(request: NextRequest) {
       score: finalResult?.score || 0,
       submissionOrder: finalResult?.submissionOrder || 0,
       pendingAnswersCount: updatedState?.round3State?.pendingAnswers?.length || 0,
-      judgedAnswersCount: questionResults.length,
+      judgedAnswersCount: currentQuestionResults.length,
     });
   } catch (error: any) {
     console.error("Error submitting answer:", error);
