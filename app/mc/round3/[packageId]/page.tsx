@@ -353,11 +353,7 @@ export default function Round3ManagementPage() {
                 {state.questionTimer && (
                   <div className="flex flex-col items-end gap-2">
                     <Timer timer={state.questionTimer} size="md" />
-                    {state.questionTimer.running && (
-                      <div className="text-sm text-gray-400">
-                        Còn {Math.max(0, Math.ceil((state.questionTimer.endsAt - Date.now()) / 1000))} giây
-                      </div>
-                    )}
+  
                     {!state.questionTimer.running && Date.now() > state.questionTimer.endsAt && (
                       <div className="text-sm text-red-400 font-semibold">
                         Đã hết thời gian

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "@/store/gameStore";
 import { usePusherGameState, useHydrateGameState } from "@/hooks/usePusherGameState";
@@ -14,7 +14,7 @@ import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Modal } from "@/components/ui/modal";
 import { suggestAnswerMatch } from "@/lib/utils/round2-engine";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, Users, Grid3x3, XCircle, CheckCircle2, Clock, Trophy, AlertCircle } from "lucide-react";
+import { Bell, Users, Grid3x3, XCircle, CheckCircle2, Clock, Trophy, AlertCircle, Play, ArrowRight } from "lucide-react";
 
 type Round = "ROUND1" | "ROUND2" | "ROUND3" | "ROUND4";
 
@@ -153,8 +153,25 @@ export default function MCDashboardPage() {
       // Poll package data every 1 second when in Round2 to catch buzz state changes
       const interval = setInterval(fetchPackageData, 1000);
       return () => clearInterval(interval);
+    } else if (state?.activePackageId && state?.round === "ROUND1") {
+      // Fetch package data for Round 1 to track history changes
+      const fetchPackageData = () => {
+        fetch(`/api/packages/${state.activePackageId}`)
+          .then((res) => res.json())
+          .then((data) => {
+            setPackageData(data);
+          })
+          .catch(console.error);
+      };
+
+      fetchPackageData();
+
+      // Poll package data every 1 second when in Round 1 to catch history changes
+      const interval = setInterval(fetchPackageData, 1000);
+      return () => clearInterval(interval);
     }
   }, [state?.activePackageId, state?.round, state?.phase]);
+
 
   // Calculate judging suggestion when answer changes
   useEffect(() => {
@@ -351,7 +368,7 @@ export default function MCDashboardPage() {
         body: JSON.stringify({ teamId: selectedTeamId, packageId: selectedPackageId }),
       });
     } else if (state?.round === "ROUND2" || selectedRound === "ROUND2") {
-      await fetch("/api/game-control/round2/start", {
+      const res = await fetch("/api/game-control/round2/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ packageId: selectedPackageId }),
@@ -366,37 +383,39 @@ export default function MCDashboardPage() {
 
     setIsJudging(true);
     try {
-      if (state.round === "ROUND2") {
-        const targetTeamId = teamId || selectedTeamIdForJudging;
-        if (!targetTeamId) {
-          alert("Vui lòng chọn đội để chấm");
-          return;
-        }
-        const res = await fetch("/api/game-control/round2/judge", {
+    if (state.round === "ROUND2") {
+      const targetTeamId = teamId || selectedTeamIdForJudging;
+      if (!targetTeamId) {
+        alert("Vui lòng chọn đội để chấm");
+        return;
+      }
+      const res = await fetch("/api/game-control/round2/judge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          isCorrect: result === "CORRECT",
+          teamId: targetTeamId,
+        }),
+      });
+      
+      if (res.ok) {
+        // Wait a bit for state to update, then check remaining answers
+        // The useEffect will handle selecting next team and keeping modal open
+        // Modal will only close when pendingAnswers becomes empty (handled by useEffect)
+      }
+    } else {
+      if (state.currentQuestionId) {
+          const res = await fetch("/api/game-control/question/judge", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            isCorrect: result === "CORRECT",
-            teamId: targetTeamId,
-          }),
+          body: JSON.stringify({ questionId: state.currentQuestionId, result }),
         });
-        
-        if (res.ok) {
-          // Wait a bit for state to update, then check remaining answers
-          // The useEffect will handle selecting next team and keeping modal open
-          // Modal will only close when pendingAnswers becomes empty (handled by useEffect)
-        }
-      } else {
-        if (state.currentQuestionId) {
-          const res = await fetch("/api/game-control/question/judge", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ questionId: state.currentQuestionId, result }),
-          });
-          if (!res.ok) {
+          if (res.ok) {
+            // Sound is played on player screen, not MC screen
+          } else {
             const error = await res.json();
             alert(error.error || "Lỗi khi chấm điểm");
-          }
+      }
         }
       }
     } finally {
@@ -409,6 +428,18 @@ export default function MCDashboardPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ horizontalOrder }),
+    });
+  }
+
+  async function startHorizontalQuestion() {
+    await fetch("/api/game-control/round2/start-horizontal-question", {
+      method: "POST",
+    });
+  }
+
+  async function continueHorizontal() {
+    await fetch("/api/game-control/round2/continue-horizontal", {
+      method: "POST",
     });
   }
 
@@ -522,6 +553,12 @@ export default function MCDashboardPage() {
   const timerExpired =
     state?.questionTimer &&
     state.questionTimer.running &&
+    (Date.now() + serverTimeOffset) > state.questionTimer.endsAt;
+  
+  // Check if timer has expired (even if running flag is still true)
+  const isTimerExpiredOrNoTimer =
+    !state?.questionTimer ||
+    !state.questionTimer.running ||
     (Date.now() + serverTimeOffset) > state.questionTimer.endsAt;
 
   // Round2 specific data
@@ -1014,7 +1051,7 @@ export default function MCDashboardPage() {
             </div>
             
             {/* Current Turn */}
-            {state?.phase === "TURN_SELECT" && (
+            {(state?.phase === "TURN_SELECT" || state?.phase === "HORIZONTAL_SELECTED") && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1022,7 +1059,7 @@ export default function MCDashboardPage() {
                 className="mb-6"
               >
                 {/* Select Team Section */}
-                {!currentTeamId && (
+                {!currentTeamId && state?.phase === "TURN_SELECT" && (
                   <div className="mb-6 p-4 bg-gradient-to-br from-blue-950/30 to-indigo-950/30 rounded-xl border border-blue-500/20">
                     <div className="flex items-center gap-2 mb-4">
                       <Users className="w-5 h-5 text-blue-400" />
@@ -1080,7 +1117,14 @@ export default function MCDashboardPage() {
                             return h.questionId === question._id?.toString() && h.result === "CORRECT";
                           });
                           
+                          // Check if attempted but not correctly answered
+                          const isAttemptedButNotCorrect = isAttempted && !isAnsweredCorrectly;
+                          
                           const teamUsedAttempt = currentTeamId && teamsUsedAttempt[currentTeamId];
+                          const currentHorizontalOrder = state?.round2State?.currentHorizontalOrder;
+                          const isSelected = state?.phase === "HORIZONTAL_SELECTED" && currentHorizontalOrder === order;
+                          // Disable if attempted, team used attempt, or another horizontal is selected
+                          const isDisabled = isAttempted || teamUsedAttempt || (state?.phase === "HORIZONTAL_SELECTED" && !isSelected);
                           
                           return (
                             <motion.button
@@ -1089,36 +1133,61 @@ export default function MCDashboardPage() {
                               animate={{ opacity: 1, scale: 1 }}
                               transition={{ delay: order * 0.05, duration: 0.2 }}
                               onClick={() => selectHorizontal(order)}
-                              disabled={isAttempted || teamUsedAttempt}
+                              disabled={isDisabled}
                               className={`px-4 py-3 rounded-lg font-medium transition-all shadow-lg ${
                                 isAnsweredCorrectly
                                   ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white cursor-not-allowed"
-                                  : isAttempted
+                                  : isAttemptedButNotCorrect
                                   ? "bg-gradient-to-r from-orange-600 to-red-600 text-white cursor-not-allowed"
                                   : teamUsedAttempt
+                                  ? "bg-gradient-to-r from-gray-700 to-gray-800 text-gray-400 cursor-not-allowed"
+                                  : isSelected
+                                  ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white ring-2 ring-cyan-400 ring-offset-2 ring-offset-gray-800"
+                                  : state?.phase === "HORIZONTAL_SELECTED"
                                   ? "bg-gradient-to-r from-gray-700 to-gray-800 text-gray-400 cursor-not-allowed"
                                   : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white hover:scale-105 transform"
                               }`}
                               title={
                                 isAnsweredCorrectly 
                                   ? "Hàng ngang này đã được trả lời đúng" 
-                                  : isAttempted 
+                                  : isAttemptedButNotCorrect
                                   ? "Hàng ngang này đã được thi (không có đáp án đúng)" 
                                   : teamUsedAttempt 
                                   ? "Đội này đã sử dụng lượt chọn hàng ngang" 
+                                  : isSelected
+                                  ? "Hàng ngang đã được chọn - Bấm 'Bắt đầu' để hiển thị câu hỏi"
+                                  : state?.phase === "HORIZONTAL_SELECTED"
+                                  ? "Đã chọn hàng ngang khác"
                                   : ""
                               }
                             >
                               <div className="flex items-center justify-center gap-2">
                                 <span>Hàng {order}</span>
                                 {isAnsweredCorrectly && <CheckCircle2 className="w-4 h-4" />}
-                                {isAttempted && !isAnsweredCorrectly && <XCircle className="w-4 h-4" />}
+                                {isAttemptedButNotCorrect && <XCircle className="w-4 h-4" />}
+                                {isSelected && <Clock className="w-4 h-4" />}
                               </div>
                             </motion.button>
                           );
                         })}
                       </div>
                     </div>
+                    {/* Show "Bắt đầu" button when horizontal is selected */}
+                    {state?.phase === "HORIZONTAL_SELECTED" && state?.round2State?.currentHorizontalOrder && (
+                      <div className="mb-4">
+                        <motion.button
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={startHorizontalQuestion}
+                          className="w-full px-6 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
+                        >
+                          <Play className="w-5 h-5" />
+                          Bắt đầu câu hỏi
+                        </motion.button>
+                      </div>
+                    )}
                     <div className="flex gap-3">
                       <motion.button
                         whileHover={{ scale: 1.05 }}
@@ -1131,6 +1200,44 @@ export default function MCDashboardPage() {
                     </div>
                   </motion.div>
                 )}
+              </motion.div>
+            )}
+
+            {/* Continue button when timer expired and no answers in Round 2 */}
+            {(state?.phase === "HORIZONTAL_ACTIVE" || state?.phase === "HORIZONTAL_JUDGING") && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="mb-6"
+              >
+                {(() => {
+                  const hasPendingAnswers = (state?.round2State?.pendingAnswers?.length || 0) > 0;
+                  // Show continue button if timer expired and no pending answers
+                  // This allows MC to continue and select new team/horizontal when no one answered
+                  const shouldShowContinue = isTimerExpiredOrNoTimer && !hasPendingAnswers;
+                  
+                  if (shouldShowContinue) {
+                    return (
+                      <div className="p-4 bg-gradient-to-br from-yellow-950/30 to-orange-950/30 rounded-xl border border-yellow-500/20">
+                        <div className="mb-4 text-center">
+                          <p className="text-yellow-400 font-semibold mb-2">Thời gian đã hết</p>
+                          <p className="text-gray-300 text-sm">Không có ai trả lời</p>
+                        </div>
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={continueHorizontal}
+                          className="w-full px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
+                        >
+                          <ArrowRight className="w-5 h-5" />
+                          Tiếp tục phần thi
+                        </motion.button>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </motion.div>
             )}
 

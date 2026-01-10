@@ -132,6 +132,7 @@ const Round4StateSchema = new Schema(
   {
     turnIndex: { type: Number, required: true, default: 0 },
     currentTeamId: { type: String },
+    completedTeamIds: { type: [String], default: [] },
     selectedPackage: { type: Number },
     questionPattern: [{ type: Number }],
     currentQuestionIndex: { type: Number },
@@ -182,6 +183,7 @@ const GameStateSchema = new Schema<IGameState>(
         // Round 2 phases
         "SETUP",
         "TURN_SELECT",
+        "HORIZONTAL_SELECTED",
         "HORIZONTAL_ACTIVE",
         "HORIZONTAL_JUDGING",
         "REVEAL_PIECE",
@@ -229,8 +231,12 @@ const GameStateSchema = new Schema<IGameState>(
 // Ensure only one GameState document exists
 GameStateSchema.index({}, { unique: true });
 
-const GameState =
-  mongoose.models.GameState || mongoose.model<IGameState>("GameState", GameStateSchema);
+// Clear model cache in development to ensure schema changes are picked up
+if (mongoose.models.GameState) {
+  delete mongoose.models.GameState;
+}
+
+const GameState = mongoose.model<IGameState>("GameState", GameStateSchema);
 
 export default GameState;
 

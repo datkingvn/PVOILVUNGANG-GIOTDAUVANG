@@ -66,6 +66,9 @@ export function QuestionPanel({
 
   const displayText = useMemo(() => {
     if (questionText) return questionText;
+    if (phase === "HORIZONTAL_SELECTED") {
+      return "Đã chọn hàng ngang - Chờ MC bắt đầu";
+    }
     if (phase === "CNV_ACTIVE" && currentTeamName) {
       return `ĐỘI ${currentTeamName.toUpperCase()} TRẢ LỜI CNV`;
     }

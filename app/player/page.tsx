@@ -40,6 +40,164 @@ export default function PlayerPage() {
   useHydrateGameState();
   usePusherGameState();
 
+
+  // Initialize sounds
+  const correctSoundRef = useRef<HTMLAudioElement | null>(null);
+  const wrongSoundRef = useRef<HTMLAudioElement | null>(null);
+  const wrongShortSoundRef = useRef<HTMLAudioElement | null>(null);
+  const openRound2SoundRef = useRef<HTMLAudioElement | null>(null);
+  const round1StartSoundRef = useRef<HTMLAudioElement | null>(null);
+  const soundRound4Ref = useRef<HTMLAudioElement | null>(null);
+  const numberCharacterSoundRef = useRef<HTMLAudioElement | null>(null);
+  const bellRingingSoundRef = useRef<HTMLAudioElement | null>(null);
+  const bellSound4Ref = useRef<HTMLAudioElement | null>(null);
+  const openTeamAnswerSoundRef = useRef<HTMLAudioElement | null>(null);
+  const correctRound3SoundRef = useRef<HTMLAudioElement | null>(null);
+  const sound10sRef = useRef<HTMLAudioElement | null>(null);
+  const sound20sRef = useRef<HTMLAudioElement | null>(null);
+  const sound30sRef = useRef<HTMLAudioElement | null>(null);
+  const audioEnabledRef = useRef<boolean>(false);
+  const isBuzzingRef = useRef<boolean>(false);
+
+  // Initialize audio elements and enable on first user interaction
+  useEffect(() => {
+    // Create audio elements immediately (but don't play yet)
+    correctSoundRef.current = new Audio("/sound/correct.mp3");
+    correctSoundRef.current.volume = 0.7;
+    correctSoundRef.current.preload = "auto";
+    wrongSoundRef.current = new Audio("/sound/wrong.mp3");
+    wrongSoundRef.current.volume = 0.7;
+    wrongSoundRef.current.preload = "auto";
+    wrongShortSoundRef.current = new Audio("/sound/wrong-short.mp3");
+    wrongShortSoundRef.current.volume = 0.7;
+    wrongShortSoundRef.current.preload = "auto";
+    openRound2SoundRef.current = new Audio("/sound/open-round-2.mp3");
+    openRound2SoundRef.current.volume = 0.7;
+    openRound2SoundRef.current.preload = "auto";
+    round1StartSoundRef.current = new Audio("/sound/round-1-start.mp3");
+    round1StartSoundRef.current.volume = 0.7;
+    round1StartSoundRef.current.preload = "auto";
+    soundRound4Ref.current = new Audio("/sound/sound-round-4.mp3");
+    soundRound4Ref.current.volume = 0.7;
+    soundRound4Ref.current.preload = "auto";
+    numberCharacterSoundRef.current = new Audio("/sound/number-character.mp3");
+    numberCharacterSoundRef.current.volume = 0.7;
+    numberCharacterSoundRef.current.preload = "auto";
+    bellRingingSoundRef.current = new Audio("/sound/bell-ringing.mp3");
+    bellRingingSoundRef.current.volume = 0.7;
+    bellRingingSoundRef.current.preload = "auto";
+    bellSound4Ref.current = new Audio("/sound/bell-sound-4.mp3");
+    bellSound4Ref.current.volume = 0.7;
+    bellSound4Ref.current.preload = "auto";
+    openTeamAnswerSoundRef.current = new Audio("/sound/open-team-answer.mp3");
+    openTeamAnswerSoundRef.current.volume = 0.7;
+    openTeamAnswerSoundRef.current.preload = "auto";
+    correctRound3SoundRef.current = new Audio("/sound/correct-round-3.mp3");
+    correctRound3SoundRef.current.volume = 0.7;
+    correctRound3SoundRef.current.preload = "auto";
+    sound10sRef.current = new Audio("/sound/10s.mp3");
+    sound10sRef.current.volume = 0.7;
+    sound10sRef.current.preload = "auto";
+    sound20sRef.current = new Audio("/sound/20s.mp3");
+    sound20sRef.current.volume = 0.7;
+    sound20sRef.current.preload = "auto";
+    sound30sRef.current = new Audio("/sound/30s.mp3");
+    sound30sRef.current.volume = 0.7;
+    sound30sRef.current.preload = "auto";
+
+    // Enable audio on first user interaction
+    const enableAudio = async () => {
+      if (audioEnabledRef.current) return;
+      
+      // Try to play and immediately pause to "unlock" audio
+      // This must be done in response to user interaction
+      try {
+        if (correctSoundRef.current) {
+          await correctSoundRef.current.play();
+          correctSoundRef.current.pause();
+          correctSoundRef.current.currentTime = 0;
+        }
+        audioEnabledRef.current = true;
+      } catch (error) {
+        // Audio will be enabled on next interaction
+        // Silently fail - user may need to interact again
+      }
+    };
+
+    const handleUserInteraction = () => {
+      if (!audioEnabledRef.current) {
+        enableAudio();
+      }
+    };
+
+    // Use capture phase and once option to ensure we catch it early
+    document.addEventListener("click", handleUserInteraction, { once: true, capture: true });
+    document.addEventListener("touchstart", handleUserInteraction, { once: true, capture: true });
+    document.addEventListener("keydown", handleUserInteraction, { once: true, capture: true });
+
+    return () => {
+      document.removeEventListener("click", handleUserInteraction, { capture: true } as any);
+      document.removeEventListener("touchstart", handleUserInteraction, { capture: true } as any);
+      document.removeEventListener("keydown", handleUserInteraction, { capture: true } as any);
+      if (correctSoundRef.current) {
+        correctSoundRef.current.pause();
+        correctSoundRef.current = null;
+      }
+      if (wrongSoundRef.current) {
+        wrongSoundRef.current.pause();
+        wrongSoundRef.current = null;
+      }
+      if (wrongShortSoundRef.current) {
+        wrongShortSoundRef.current.pause();
+        wrongShortSoundRef.current = null;
+      }
+      if (openRound2SoundRef.current) {
+        openRound2SoundRef.current.pause();
+        openRound2SoundRef.current = null;
+      }
+      if (round1StartSoundRef.current) {
+        round1StartSoundRef.current.pause();
+        round1StartSoundRef.current = null;
+      }
+      if (soundRound4Ref.current) {
+        soundRound4Ref.current.pause();
+        soundRound4Ref.current = null;
+      }
+      if (numberCharacterSoundRef.current) {
+        numberCharacterSoundRef.current.pause();
+        numberCharacterSoundRef.current = null;
+      }
+      if (bellRingingSoundRef.current) {
+        bellRingingSoundRef.current.pause();
+        bellRingingSoundRef.current = null;
+      }
+      if (bellSound4Ref.current) {
+        bellSound4Ref.current.pause();
+        bellSound4Ref.current = null;
+      }
+      if (openTeamAnswerSoundRef.current) {
+        openTeamAnswerSoundRef.current.pause();
+        openTeamAnswerSoundRef.current = null;
+      }
+      if (correctRound3SoundRef.current) {
+        correctRound3SoundRef.current.pause();
+        correctRound3SoundRef.current = null;
+      }
+      if (sound10sRef.current) {
+        sound10sRef.current.pause();
+        sound10sRef.current = null;
+      }
+      if (sound20sRef.current) {
+        sound20sRef.current.pause();
+        sound20sRef.current = null;
+      }
+      if (sound30sRef.current) {
+        sound30sRef.current.pause();
+        sound30sRef.current = null;
+      }
+    };
+  }, []);
+
   // Show congratulations modal when Round 3 ends
   useEffect(() => {
     if (state?.round === "ROUND3" && state?.phase === "ROUND3_END") {
@@ -107,6 +265,20 @@ export default function PlayerPage() {
         .then((res) => res.json())
         .then(setPackageData)
         .catch(console.error);
+    } else if (state?.activePackageId && state?.round === "ROUND1") {
+      // Fetch package data for Round 1 to track history changes
+      const fetchPackageData = () => {
+        fetch(`/api/packages/${state.activePackageId}`)
+          .then((res) => res.json())
+          .then(setPackageData)
+          .catch(console.error);
+      };
+
+      fetchPackageData();
+
+      // Poll package data every 1 second when in Round 1 to catch history changes
+      const interval = setInterval(fetchPackageData, 1000);
+      return () => clearInterval(interval);
     }
   }, [state?.activePackageId, state?.round, state?.phase, state?.round2State?.pendingAnswers?.length ?? 0]);
 
@@ -161,11 +333,709 @@ export default function PlayerPage() {
     return null;
   }, [state?.currentQuestionId, packageData?.history]);
 
+  // Track Round 1 package history changes to play sound when CORRECT or WRONG
+  const prevHistoryLengthRef = useRef<number>(0);
+  useEffect(() => {
+    if (state?.round === "ROUND1" && packageData?.history) {
+      const history = packageData.history || [];
+      const prevLength = prevHistoryLengthRef.current;
+      
+      // Check if a new entry was added
+      if (history.length > prevLength) {
+        const newEntries = history.slice(prevLength);
+        const hasNewCorrect = newEntries.some((entry: any) => entry.result === "CORRECT");
+        const hasNewWrong = newEntries.some((entry: any) => entry.result === "WRONG");
+        
+        if (hasNewCorrect && correctSoundRef.current && audioEnabledRef.current) {
+          correctSoundRef.current.play().catch((error) => {
+            // Silently fail - audio may not be enabled yet
+            if (error.name !== "NotAllowedError") {
+              console.error("Failed to play correct sound:", error);
+            }
+          });
+        }
+        if (hasNewWrong && wrongShortSoundRef.current && audioEnabledRef.current) {
+          wrongShortSoundRef.current.play().catch((error) => {
+            // Silently fail - audio may not be enabled yet
+            if (error.name !== "NotAllowedError") {
+              console.error("Failed to play wrong-short sound:", error);
+            }
+          });
+        }
+      }
+      
+      prevHistoryLengthRef.current = history.length;
+    }
+  }, [packageData?.history, state?.round]);
+
+  // Track pending answers to play sound when all answers are judged (Round 2 & 3)
+  const prevPendingAnswersLengthRef = useRef<{ round2: number; round3: number }>({
+    round2: 0,
+    round3: 0,
+  });
+  const hasHadAnswersRef = useRef<{ round2: boolean; round3: boolean }>({
+    round2: false,
+    round3: false,
+  });
+
+  useEffect(() => {
+    // Round 2: Track pendingAnswers changes
+    if (state?.round === "ROUND2") {
+      const currentPending = state.round2State?.pendingAnswers || [];
+      const currentLength = currentPending.length;
+      const prevLength = prevPendingAnswersLengthRef.current.round2;
+
+      // Track if we've ever had answers (at least one team responded)
+      if (currentLength > 0 && !hasHadAnswersRef.current.round2) {
+        hasHadAnswersRef.current.round2 = true;
+      }
+
+      // Play sound when all answers are judged (went from > 0 to 0) and we had answers
+      // Only play if at least one answer is correct (phase becomes REVEAL_PIECE, not TURN_SELECT)
+      if (
+        prevLength > 0 &&
+        currentLength === 0 &&
+        hasHadAnswersRef.current.round2 &&
+        openTeamAnswerSoundRef.current &&
+        audioEnabledRef.current
+      ) {
+        // Check if at least one answer is correct by checking phase
+        // REVEAL_PIECE means at least one answer was correct
+        // TURN_SELECT means all answers were wrong
+        const hasCorrectAnswer = state?.phase === "REVEAL_PIECE";
+        
+        if (hasCorrectAnswer) {
+          openTeamAnswerSoundRef.current.play().catch((error) => {
+            if (error.name !== "NotAllowedError") {
+              console.error("Failed to play open-team-answer sound:", error);
+            }
+          });
+        }
+        // Reset flag for next question
+        hasHadAnswersRef.current.round2 = false;
+      }
+
+      prevPendingAnswersLengthRef.current.round2 = currentLength;
+    } else {
+      // Reset when not in Round 2
+      prevPendingAnswersLengthRef.current.round2 = 0;
+      hasHadAnswersRef.current.round2 = false;
+    }
+
+    // Round 3: Track pendingAnswers changes
+    if (state?.round === "ROUND3") {
+      const currentPending = state.round3State?.pendingAnswers || [];
+      const currentLength = currentPending.length;
+      const prevLength = prevPendingAnswersLengthRef.current.round3;
+
+      // Track if we've ever had answers (at least one team responded)
+      if (currentLength > 0 && !hasHadAnswersRef.current.round3) {
+        hasHadAnswersRef.current.round3 = true;
+      }
+
+      // Play sound when all answers are judged (went from > 0 to 0) and we had answers
+      // Only play if at least one answer is correct
+      if (
+        prevLength > 0 &&
+        currentLength === 0 &&
+        hasHadAnswersRef.current.round3 &&
+        openTeamAnswerSoundRef.current &&
+        audioEnabledRef.current
+      ) {
+        // Check if at least one answer is correct by checking questionResults for current question
+        const currentQuestionIndex = state.round3State?.currentQuestionIndex;
+        if (currentQuestionIndex !== undefined && currentQuestionIndex >= 0) {
+          const questionIndexKey = String(currentQuestionIndex);
+          const questionResultsMap = state.round3State?.questionResults;
+          let hasCorrectAnswer = false;
+          
+          if (questionResultsMap) {
+            let questionResults: any[] = [];
+            
+            // Get results for current question
+            if (questionResultsMap instanceof Map) {
+              questionResults = questionResultsMap.get(questionIndexKey) || [];
+            } else if (typeof questionResultsMap === 'object') {
+              const resultsObj = questionResultsMap as Record<string, any>;
+              questionResults = resultsObj[questionIndexKey] || resultsObj[currentQuestionIndex] || [];
+            }
+            
+            // Check if any result has isCorrect === true
+            hasCorrectAnswer = questionResults.some((r: any) => r.isCorrect === true);
+          }
+          
+          if (hasCorrectAnswer) {
+            openTeamAnswerSoundRef.current.play().catch((error) => {
+              if (error.name !== "NotAllowedError") {
+                console.error("Failed to play open-team-answer sound:", error);
+              }
+            });
+          }
+        }
+        // Reset flag for next question
+        hasHadAnswersRef.current.round3 = false;
+      }
+
+      prevPendingAnswersLengthRef.current.round3 = currentLength;
+    } else {
+      // Reset when not in Round 3
+      prevPendingAnswersLengthRef.current.round3 = 0;
+      hasHadAnswersRef.current.round3 = false;
+    }
+  }, [
+    state?.round,
+    state?.round2State?.pendingAnswers?.length,
+    state?.round3State?.pendingAnswers?.length,
+    state?.round3State?.currentQuestionIndex,
+    state?.phase,
+    state?.currentQuestionId, // Reset when question changes
+    // Note: questionResults is checked inside the effect, not as a dependency
+    // to avoid array size changes causing dependency array issues
+  ]);
+
+  // Reset tracking when question changes
+  const prevQuestionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const currentQuestionId = state?.currentQuestionId || null;
+    if (currentQuestionId !== prevQuestionIdRef.current) {
+      // Question changed - reset tracking
+      hasHadAnswersRef.current.round2 = false;
+      hasHadAnswersRef.current.round3 = false;
+      prevPendingAnswersLengthRef.current.round2 = state?.round2State?.pendingAnswers?.length || 0;
+      prevPendingAnswersLengthRef.current.round3 = state?.round3State?.pendingAnswers?.length || 0;
+      prevQuestionIdRef.current = currentQuestionId;
+    }
+  }, [state?.currentQuestionId, state?.round2State?.pendingAnswers?.length, state?.round3State?.pendingAnswers?.length]);
+
+  // Track Round 3 questionResults changes to play sound when answers are judged
+  const prevRound3QuestionResultsRef = useRef<Map<string, number>>(new Map());
+  useEffect(() => {
+    if (state?.round === "ROUND3" && state?.round3State?.questionResults) {
+      const currentQuestionIndex = state.round3State.currentQuestionIndex;
+      if (currentQuestionIndex !== undefined && currentQuestionIndex >= 0) {
+        const questionIndexKey = String(currentQuestionIndex);
+        const questionResultsMap = state.round3State.questionResults;
+        
+        // Get current questionResults
+        let currentQuestionResults: any[] = [];
+        if (questionResultsMap instanceof Map) {
+          currentQuestionResults = questionResultsMap.get(questionIndexKey) || [];
+        } else if (typeof questionResultsMap === 'object') {
+          const resultsObj = questionResultsMap as Record<string, any>;
+          currentQuestionResults = resultsObj[questionIndexKey] || resultsObj[currentQuestionIndex] || [];
+        }
+
+        // Get previous count
+        const prevCount = prevRound3QuestionResultsRef.current.get(questionIndexKey) || 0;
+        const currentCount = currentQuestionResults.length;
+
+        // Check if new entries were added
+        if (currentCount > prevCount) {
+          const newEntries = currentQuestionResults.slice(prevCount);
+          
+          // Play sounds for each new entry
+          newEntries.forEach((entry: any) => {
+            if (entry.isCorrect === true && correctRound3SoundRef.current && audioEnabledRef.current) {
+              correctRound3SoundRef.current.play().catch((error) => {
+                if (error.name !== "NotAllowedError") {
+                  console.error("Failed to play correct-round-3 sound:", error);
+                }
+              });
+            } else if (entry.isCorrect === false && wrongSoundRef.current && audioEnabledRef.current) {
+              wrongSoundRef.current.play().catch((error) => {
+                if (error.name !== "NotAllowedError") {
+                  console.error("Failed to play wrong sound:", error);
+                }
+              });
+            }
+          });
+        }
+
+        // Update previous count
+        prevRound3QuestionResultsRef.current.set(questionIndexKey, currentCount);
+      }
+    }
+
+    // Reset when question changes
+    if (state?.currentQuestionId) {
+      const currentQuestionIndex = state?.round3State?.currentQuestionIndex;
+      if (currentQuestionIndex !== undefined) {
+        const questionIndexKey = String(currentQuestionIndex);
+        // Keep tracking for current question, reset others
+        const newMap = new Map<string, number>();
+        newMap.set(questionIndexKey, prevRound3QuestionResultsRef.current.get(questionIndexKey) || 0);
+        prevRound3QuestionResultsRef.current = newMap;
+      } else {
+        prevRound3QuestionResultsRef.current = new Map();
+      }
+    }
+  }, [
+    state?.round,
+    state?.round3State?.currentQuestionIndex,
+    state?.currentQuestionId,
+    // Track questionResults length for current question to detect changes
+    state?.round3State?.questionResults ? 
+      (state.round3State.questionResults instanceof Map ?
+        state.round3State.questionResults.get(String(state.round3State.currentQuestionIndex ?? -1))?.length ?? 0 :
+        ((state.round3State.questionResults as Record<string, any>)[String(state.round3State.currentQuestionIndex ?? -1)]?.length ?? 0)) :
+      0,
+  ]);
+
+  // Track Round 1 phase/package changes to play sound when MC selects team and starts game
+  const prevRound1StateRef = useRef<{ phase: string | null; activePackageId: string | null | undefined }>({
+    phase: null,
+    activePackageId: null,
+  });
+  
+  // Track Round 2 and Round 4 start to play sound ONLY when first entering each round (not when phase changes within the round)
+  const prevRoundRef = useRef<string | null>(null);
+  const round2SoundPlayedRef = useRef<boolean>(false);
+  const round4SoundPlayedRef = useRef<boolean>(false);
+  
+  useEffect(() => {
+    const currentRound = state?.round || null;
+    const currentPhase = state?.phase || null;
+    const currentActivePackageId = state?.activePackageId;
+    const prevRound = prevRoundRef.current;
+    const prevRound1State = prevRound1StateRef.current;
+    
+    // Handle Round 1: Play sound when phase changes to QUESTION_SHOW with activePackageId (MC has selected team and started game)
+    if (currentRound === "ROUND1") {
+      // Reset when leaving Round 1
+      if (prevRound !== null && prevRound !== "ROUND1") {
+        prevRound1StateRef.current = {
+          phase: null,
+          activePackageId: null,
+        };
+      }
+      
+      // Play sound when phase changes to QUESTION_SHOW and package is active (MC selected team and started game)
+      // Check if this is a new game start (phase or package changed to QUESTION_SHOW with activePackageId)
+      const isGameStarting = 
+        currentPhase === "QUESTION_SHOW" &&
+        currentActivePackageId &&
+        (prevRound1State.phase !== "QUESTION_SHOW" || prevRound1State.activePackageId !== currentActivePackageId);
+      
+      if (isGameStarting) {
+        if (round1StartSoundRef.current) {
+          // Try to unlock audio first if not enabled
+          if (!audioEnabledRef.current && correctSoundRef.current) {
+            correctSoundRef.current.play()
+              .then(() => {
+                correctSoundRef.current?.pause();
+                if (correctSoundRef.current) {
+                  correctSoundRef.current.currentTime = 0;
+                }
+                audioEnabledRef.current = true;
+              })
+              .catch(() => {
+                // Audio still not unlocked, continue anyway
+              });
+          }
+          
+          // Try to play Round 1 sound immediately (don't await to avoid blocking)
+          if (round1StartSoundRef.current) {
+            round1StartSoundRef.current.currentTime = 0;
+            round1StartSoundRef.current.play().catch((error: any) => {
+              // If NotAllowedError, audio hasn't been unlocked by user interaction yet
+              // This is expected and OK - sound will play once user interacts
+              if (error.name !== "NotAllowedError") {
+                console.error("Failed to play round-1-start sound:", error);
+              }
+            });
+          }
+        }
+      }
+      
+      // Update previous state reference for Round 1
+      prevRound1StateRef.current = {
+        phase: currentPhase,
+        activePackageId: currentActivePackageId,
+      };
+    } else {
+      // Reset when not in Round 1
+      prevRound1StateRef.current = {
+        phase: null,
+        activePackageId: null,
+      };
+    }
+    
+    // Handle Round 2: Reset flag when leaving Round 2
+    if (prevRound === "ROUND2" && currentRound !== "ROUND2") {
+      round2SoundPlayedRef.current = false;
+    }
+    
+    // Handle Round 4: Reset flag when leaving Round 4
+    if (prevRound === "ROUND4" && currentRound !== "ROUND4") {
+      round4SoundPlayedRef.current = false;
+    }
+    
+    // Play Round 2 sound when FIRST entering Round 2 (from a different round or from null)
+    if (currentRound === "ROUND2" && prevRound !== "ROUND2" && !round2SoundPlayedRef.current) {
+      if (openRound2SoundRef.current) {
+        // Try to unlock audio first if not enabled
+        if (!audioEnabledRef.current && correctSoundRef.current) {
+          correctSoundRef.current.play()
+            .then(() => {
+              correctSoundRef.current?.pause();
+              if (correctSoundRef.current) {
+                correctSoundRef.current.currentTime = 0;
+              }
+              audioEnabledRef.current = true;
+            })
+            .catch(() => {
+              // Audio still not unlocked, continue anyway
+            });
+        }
+        
+        // Try to play Round 2 sound immediately (don't await to avoid blocking)
+        if (openRound2SoundRef.current) {
+          openRound2SoundRef.current.currentTime = 0;
+          openRound2SoundRef.current.play().catch((error: any) => {
+            // If NotAllowedError, audio hasn't been unlocked by user interaction yet
+            // This is expected and OK - sound will play once user interacts
+            if (error.name !== "NotAllowedError") {
+              console.error("Failed to play open-round-2 sound:", error);
+            }
+          });
+          // Mark as played after attempting to play
+          round2SoundPlayedRef.current = true;
+        }
+      }
+    }
+    
+    // Play Round 4 sound when FIRST entering Round 4 (from a different round or from null)
+    if (currentRound === "ROUND4" && prevRound !== "ROUND4" && !round4SoundPlayedRef.current) {
+      if (soundRound4Ref.current) {
+        // Try to unlock audio first if not enabled
+        if (!audioEnabledRef.current && correctSoundRef.current) {
+          correctSoundRef.current.play()
+            .then(() => {
+              correctSoundRef.current?.pause();
+              if (correctSoundRef.current) {
+                correctSoundRef.current.currentTime = 0;
+              }
+              audioEnabledRef.current = true;
+            })
+            .catch(() => {
+              // Audio still not unlocked, continue anyway
+            });
+        }
+        
+        // Try to play Round 4 sound immediately (don't await to avoid blocking)
+        if (soundRound4Ref.current) {
+          soundRound4Ref.current.currentTime = 0;
+          soundRound4Ref.current.play().catch((error: any) => {
+            // If NotAllowedError, audio hasn't been unlocked by user interaction yet
+            // This is expected and OK - sound will play once user interacts
+            if (error.name !== "NotAllowedError") {
+              console.error("Failed to play sound-round-4 sound:", error);
+            }
+          });
+          // Mark as played after attempting to play
+          round4SoundPlayedRef.current = true;
+        }
+      }
+    }
+    
+    // Update previous round reference
+    prevRoundRef.current = currentRound;
+  }, [state?.round, state?.phase, state?.activePackageId]);
+
+  // Track Round 2 horizontal selection to play sound when MC selects a horizontal row
+  const prevHorizontalSelectionRef = useRef<{ phase: string | null; currentHorizontalOrder: number | null | undefined }>({
+    phase: null,
+    currentHorizontalOrder: null,
+  });
+
+  useEffect(() => {
+    if (state?.round !== "ROUND2") {
+      prevHorizontalSelectionRef.current = {
+        phase: null,
+        currentHorizontalOrder: null,
+      };
+      return;
+    }
+
+    const currentPhase = state?.phase || null;
+    const currentHorizontalOrder = state?.round2State?.currentHorizontalOrder;
+    const prevState = prevHorizontalSelectionRef.current;
+
+    // Play sound when phase changes to HORIZONTAL_SELECTED and a horizontal order is set
+    // Only play if this is a new selection (phase or horizontal order changed)
+    const isHorizontalSelected = 
+      currentPhase === "HORIZONTAL_SELECTED" && 
+      currentHorizontalOrder !== undefined && 
+      currentHorizontalOrder !== null &&
+      (prevState.phase !== "HORIZONTAL_SELECTED" || prevState.currentHorizontalOrder !== currentHorizontalOrder);
+
+    if (isHorizontalSelected && numberCharacterSoundRef.current) {
+      // Try to unlock audio first if not enabled
+      if (!audioEnabledRef.current && correctSoundRef.current) {
+        correctSoundRef.current.play()
+          .then(() => {
+            correctSoundRef.current?.pause();
+            if (correctSoundRef.current) {
+              correctSoundRef.current.currentTime = 0;
+            }
+            audioEnabledRef.current = true;
+          })
+          .catch(() => {
+            // Audio still not unlocked, continue anyway
+          });
+      }
+
+      // Try to play number-character sound immediately (don't await to avoid blocking)
+      if (numberCharacterSoundRef.current) {
+        numberCharacterSoundRef.current.currentTime = 0;
+        numberCharacterSoundRef.current.play().catch((error: any) => {
+          // If NotAllowedError, audio hasn't been unlocked by user interaction yet
+          if (error.name !== "NotAllowedError") {
+            console.error("Failed to play number-character sound:", error);
+          }
+        });
+      }
+    }
+
+    // Update previous state reference
+    prevHorizontalSelectionRef.current = {
+      phase: currentPhase,
+      currentHorizontalOrder: currentHorizontalOrder,
+    };
+  }, [state?.round, state?.phase, state?.round2State?.currentHorizontalOrder]);
+
   // Check if timer is up - must be before early return
   const isTimeUp = useMemo(() => {
     if (!state?.questionTimer || !state.questionTimer.running) return false;
     return currentTime >= state.questionTimer.endsAt;
   }, [state?.questionTimer, currentTime]);
+
+  // Reset buzzing flag when phase changes to indicate buzz was processed or round ended
+  // Use state properties directly instead of computed values to avoid hooks order issues
+  // This must be before early return to maintain hooks order
+  const prevPhaseRef = useRef<string | null>(null);
+  const prevStealLockedScoreRef = useRef<number | null>(null);
+  const prevMainJudgingScoreRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!state?.round) {
+      isBuzzingRef.current = false;
+      prevPhaseRef.current = null;
+      return;
+    }
+
+    const currentPhase = state.phase || null;
+    const prevPhase = prevPhaseRef.current;
+
+    // Only reset flag when phase actually changes to a phase that indicates buzz was processed
+    // For Round 2: reset when phase changes to KEYWORD_BUZZ_JUDGING, CNV_ACTIVE, CNV_JUDGING, or ROUND_END
+    // This means the buzz was successful and user can't buzz again in this round
+    if (state.round === "ROUND2") {
+      if (prevPhase !== null && currentPhase !== prevPhase) {
+        // Reset flag when phase changes to indicate buzz was processed or round ended
+        const isBuzzProcessedPhase = 
+          currentPhase === "KEYWORD_BUZZ_JUDGING" ||
+          currentPhase === "CNV_ACTIVE" ||
+          currentPhase === "CNV_JUDGING" ||
+          currentPhase === "ROUND_END" ||
+          currentPhase === "REVEAL_PIECE" ||
+          currentPhase === "FINAL_PIECE_REVEAL";
+        
+        if (isBuzzProcessedPhase) {
+          isBuzzingRef.current = false;
+        }
+      }
+    } else if (state.round === "ROUND4") {
+      const r4 = state.round4State;
+      const isRound4StealWindow = currentPhase === "R4_STEAL_WINDOW" && !!r4?.stealWindow;
+      
+      // Reset when phase changes away from steal window (buzz was processed or window closed)
+      if (prevPhase !== null && prevPhase === "R4_STEAL_WINDOW" && currentPhase !== "R4_STEAL_WINDOW") {
+        isBuzzingRef.current = false;
+      }
+      // Also reset if steal window becomes inactive
+      if (prevPhase === "R4_STEAL_WINDOW" && !isRound4StealWindow) {
+        isBuzzingRef.current = false;
+      }
+      
+      // Play wrong.mp3 when main answer is judged as wrong (phase changes to R4_STEAL_WINDOW)
+      if (prevPhase !== null && currentPhase !== prevPhase && currentPhase === "R4_STEAL_WINDOW") {
+        // Main answer was wrong, play wrong sound
+        if (wrongSoundRef.current && audioEnabledRef.current) {
+          wrongSoundRef.current.play().catch((error) => {
+            if (error.name !== "NotAllowedError") {
+              console.error("Failed to play wrong sound for Round 4:", error);
+            }
+          });
+        }
+      }
+      
+      // Track main team score when entering judging phase
+      if (currentPhase === "R4_QUESTION_LOCK_MAIN" || currentPhase === "R4_JUDGE_MAIN") {
+        if (prevPhase !== currentPhase) {
+          // Just entered judging phase, track score
+          const mainTeam = state.teams.find((t: any) => t.teamId?.toString() === r4?.currentTeamId?.toString());
+          if (mainTeam) {
+            prevMainJudgingScoreRef.current = mainTeam.score;
+          }
+        }
+      }
+      
+      // Play correct.mp3 when main answer is judged as correct
+      // Check score change when phase moves forward from judging phase
+      if (prevPhase !== null && currentPhase !== prevPhase) {
+        const isMainJudgingPhase = prevPhase === "R4_QUESTION_LOCK_MAIN" || prevPhase === "R4_JUDGE_MAIN";
+        const isNotStealWindow = currentPhase !== "R4_STEAL_WINDOW";
+        const isMainTeam = r4?.currentTeamId?.toString() === userTeamId?.toString();
+        const isForwardPhase = currentPhase === "R4_STAR_CONFIRMATION" || currentPhase === "R4_QUESTION_SHOW" || currentPhase === "R4_IDLE" || currentPhase === "R4_END";
+        
+        if (isMainJudgingPhase && isNotStealWindow && isMainTeam && isForwardPhase) {
+          const mainTeam = state.teams.find((t: any) => t.teamId?.toString() === r4?.currentTeamId?.toString());
+          
+          // Check score change to confirm correct answer
+          if (mainTeam && prevMainJudgingScoreRef.current !== null) {
+            const prevScore = prevMainJudgingScoreRef.current;
+            const currentScore = mainTeam.score;
+            
+            if (currentScore > prevScore) {
+              // Score increased → main answer was correct
+              // Ensure audio is enabled first
+              if (!audioEnabledRef.current && correctSoundRef.current) {
+                correctSoundRef.current.play()
+                  .then(() => {
+                    if (correctSoundRef.current) {
+                      correctSoundRef.current.pause();
+                      correctSoundRef.current.currentTime = 0;
+                    }
+                    audioEnabledRef.current = true;
+                  })
+                  .catch(() => {
+                    // Audio unlock failed, continue anyway
+                  });
+              }
+              
+              if (correctSoundRef.current) {
+                correctSoundRef.current.play().catch((error) => {
+                  if (error.name !== "NotAllowedError") {
+                    console.error("Failed to play correct sound for Round 4:", error);
+                  }
+                });
+              }
+              
+              // Reset score tracking
+              prevMainJudgingScoreRef.current = null;
+            }
+          }
+        }
+      }
+      
+      // Play sound based on points when Round 4 question starts (phase changes to R4_QUESTION_SHOW)
+      if (prevPhase !== null && currentPhase !== prevPhase && currentPhase === "R4_QUESTION_SHOW") {
+        const currentQuestionIndex = r4?.currentQuestionIndex;
+        const questions = r4?.questions;
+        if (currentQuestionIndex !== undefined && questions && questions[currentQuestionIndex]) {
+          const points = questions[currentQuestionIndex].points;
+          let soundToPlay: HTMLAudioElement | null = null;
+          
+          if (points === 10 && sound10sRef.current) {
+            soundToPlay = sound10sRef.current;
+          } else if (points === 20 && sound20sRef.current) {
+            soundToPlay = sound20sRef.current;
+          } else if (points === 30 && sound30sRef.current) {
+            soundToPlay = sound30sRef.current;
+          }
+          
+          if (soundToPlay) {
+            // Ensure audio is enabled first if needed
+            if (!audioEnabledRef.current && correctSoundRef.current) {
+              correctSoundRef.current.play()
+                .then(() => {
+                  if (correctSoundRef.current) {
+                    correctSoundRef.current.pause();
+                    correctSoundRef.current.currentTime = 0;
+                  }
+                  audioEnabledRef.current = true;
+                })
+                .catch(() => {
+                  // Audio unlock failed, continue anyway
+                });
+            }
+            
+            soundToPlay.currentTime = 0;
+            soundToPlay.play().catch((error) => {
+              if (error.name !== "NotAllowedError") {
+                console.error(`Failed to play ${points}s sound:`, error);
+              }
+            });
+          }
+        }
+      }
+      
+      // Track score when entering R4_STEAL_LOCKED phase to detect if steal answer was correct/wrong
+      if (currentPhase === "R4_STEAL_LOCKED" && prevPhase !== "R4_STEAL_LOCKED") {
+        const userTeam = state.teams.find((t: any) => t.teamId?.toString() === userTeamId?.toString());
+        if (userTeam) {
+          prevStealLockedScoreRef.current = userTeam.score;
+        }
+      }
+      
+      // Play correct.mp3 or wrong.mp3 when steal answer is judged
+      // When phase changes from R4_STEAL_LOCKED to something else (not R4_STEAL_WINDOW)
+      // and the user's team was the one that buzzed
+      if (prevPhase === "R4_STEAL_LOCKED" && currentPhase !== "R4_STEAL_LOCKED" && currentPhase !== "R4_STEAL_WINDOW") {
+        const userTeam = state.teams.find((t: any) => t.teamId?.toString() === userTeamId?.toString());
+        const buzzedTeamId = r4?.stealWindow?.buzzLockedTeamId?.toString();
+        const userTeamKey = userTeam?.teamId?.toString();
+        
+        // If user's team buzzed and phase changed away (judged), check score change
+        if (userTeamKey && buzzedTeamId && userTeamKey === buzzedTeamId && prevStealLockedScoreRef.current !== null && userTeam) {
+          const prevScore = prevStealLockedScoreRef.current;
+          const currentScore = userTeam.score;
+          
+          if (currentScore > prevScore) {
+            // Score increased → steal answer was correct
+            // Ensure audio is enabled first
+            if (!audioEnabledRef.current && correctSoundRef.current) {
+              correctSoundRef.current.play()
+                .then(() => {
+                  if (correctSoundRef.current) {
+                    correctSoundRef.current.pause();
+                    correctSoundRef.current.currentTime = 0;
+                  }
+                  audioEnabledRef.current = true;
+                })
+                .catch(() => {
+                  // Audio unlock failed, continue anyway
+                });
+            }
+            
+            if (correctSoundRef.current) {
+              correctSoundRef.current.play().catch((error) => {
+                if (error.name !== "NotAllowedError") {
+                  console.error("Failed to play correct sound for Round 4 steal answer:", error);
+                }
+              });
+            }
+          } else if (currentScore < prevScore && wrongSoundRef.current && audioEnabledRef.current) {
+            // Score decreased → steal answer was wrong
+            wrongSoundRef.current.play().catch((error) => {
+              if (error.name !== "NotAllowedError") {
+                console.error("Failed to play wrong sound for Round 4 steal answer:", error);
+              }
+            });
+          }
+          
+          // Reset score tracking
+          prevStealLockedScoreRef.current = null;
+        }
+      }
+    } else {
+      // Not in a round where buzzing is possible, reset flag
+      isBuzzingRef.current = false;
+    }
+
+    // Update previous phase
+    prevPhaseRef.current = currentPhase;
+  }, [state?.round, state?.phase, state?.round4State]);
 
   if (!user || !state) {
     return <div className="min-h-screen flex items-center justify-center">Đang tải...</div>;
@@ -241,7 +1111,41 @@ export default function PlayerPage() {
   };
 
   const handleBuzzKeyword = async () => {
-    if (!userTeamId) return;
+    if (!userTeamId || isBuzzingRef.current) return;
+    
+    // Prevent multiple clicks
+    isBuzzingRef.current = true;
+    
+    // Play bell ringing sound immediately (before API call)
+    // Don't await to ensure sound plays immediately and doesn't block
+    if (bellRingingSoundRef.current) {
+      // Try to unlock audio first if needed
+      if (!audioEnabledRef.current && correctSoundRef.current) {
+        try {
+          await correctSoundRef.current.play();
+          correctSoundRef.current.pause();
+          correctSoundRef.current.currentTime = 0;
+          audioEnabledRef.current = true;
+        } catch (e) {
+          // Audio still not unlocked, continue anyway
+        }
+      }
+      
+      // Play bell ringing sound
+      try {
+        bellRingingSoundRef.current.currentTime = 0;
+        bellRingingSoundRef.current.play().catch((error: any) => {
+          if (error.name !== "NotAllowedError") {
+            console.error("Failed to play bell-ringing sound:", error);
+          }
+        });
+      } catch (error: any) {
+        if (error.name !== "NotAllowedError") {
+          console.error("Failed to play bell-ringing sound:", error);
+        }
+      }
+    }
+    
     try {
       const res = await fetch("/api/game-control/round2/buzz-keyword", {
         method: "POST",
@@ -249,15 +1153,54 @@ export default function PlayerPage() {
       if (!res.ok) {
         const data = await res.json();
         alert(data.error || "Lỗi rung chuông dự đoán từ khóa");
+        isBuzzingRef.current = false; // Reset on error
+      } else {
+        // Keep isBuzzingRef true to prevent multiple buzzes until state updates
+        // Reset will happen when canBuzzKeyword becomes false
       }
     } catch (error) {
       console.error("Error buzzing keyword:", error);
       alert("Lỗi rung chuông dự đoán từ khóa");
+      isBuzzingRef.current = false; // Reset on error
     }
   };
 
   const handleBuzzCNV = async () => {
-    if (!canBuzzCNV) return;
+    if (!canBuzzCNV || isBuzzingRef.current) return;
+    
+    // Prevent multiple clicks
+    isBuzzingRef.current = true;
+    
+    // Play bell ringing sound immediately (before API call)
+    // Don't await to ensure sound plays immediately and doesn't block
+    if (bellRingingSoundRef.current) {
+      // Try to unlock audio first if needed
+      if (!audioEnabledRef.current && correctSoundRef.current) {
+        try {
+          await correctSoundRef.current.play();
+          correctSoundRef.current.pause();
+          correctSoundRef.current.currentTime = 0;
+          audioEnabledRef.current = true;
+        } catch (e) {
+          // Audio still not unlocked, continue anyway
+        }
+      }
+      
+      // Play bell ringing sound
+      try {
+        bellRingingSoundRef.current.currentTime = 0;
+        bellRingingSoundRef.current.play().catch((error: any) => {
+          if (error.name !== "NotAllowedError") {
+            console.error("Failed to play bell-ringing sound:", error);
+          }
+        });
+      } catch (error: any) {
+        if (error.name !== "NotAllowedError") {
+          console.error("Failed to play bell-ringing sound:", error);
+        }
+      }
+    }
+    
     try {
       const res = await fetch("/api/game-control/round2/buzz-cnv", {
         method: "POST",
@@ -265,10 +1208,15 @@ export default function PlayerPage() {
       if (!res.ok) {
         const error = await res.json();
         alert(error.error || "Không thể bấm chuông CNV");
+        isBuzzingRef.current = false; // Reset on error
+      } else {
+        // Keep isBuzzingRef true to prevent multiple buzzes until state updates
+        // Reset will happen when canBuzzCNV becomes false
       }
     } catch (error) {
       console.error("Error buzzing CNV:", error);
       alert("Lỗi bấm chuông CNV");
+      isBuzzingRef.current = false; // Reset on error
     }
   };
 
@@ -312,7 +1260,26 @@ export default function PlayerPage() {
     !isMainTeamRound4;
 
   const handleBuzzRound4 = async () => {
-    if (!isRound4 || !userTeamId || !canBuzzRound4) return;
+    if (!isRound4 || !userTeamId || !canBuzzRound4 || isBuzzingRef.current) return;
+    
+    // Prevent multiple clicks
+    isBuzzingRef.current = true;
+    
+    // Play bell sound for Round 4 immediately when button is clicked
+    // Create a fresh Audio element each time to ensure it works
+    try {
+      const bellSound = new Audio("/sound/bell-sound-4.mp3");
+      bellSound.volume = 0.7;
+      bellSound.play().catch((error: any) => {
+        // Silently handle NotAllowedError (audio policy)
+        if (error.name !== "NotAllowedError") {
+          console.error("Failed to play bell-sound-4 sound:", error);
+        }
+      });
+    } catch (error: any) {
+      console.error("Failed to create/play bell-sound-4 audio:", error);
+    }
+    
     try {
       const res = await fetch("/api/game-control/round4/buzz", {
         method: "POST",
@@ -320,10 +1287,15 @@ export default function PlayerPage() {
       if (!res.ok) {
         const error = await res.json();
         alert(error.error || "Không thể bấm chuông giành quyền Round 4");
+        isBuzzingRef.current = false; // Reset on error
+      } else {
+        // Keep isBuzzingRef true to prevent multiple buzzes until state updates
+        // Reset will happen when canBuzzRound4 becomes false
       }
     } catch (error) {
       console.error("Error buzzing Round 4:", error);
       alert("Lỗi bấm chuông giành quyền Round 4");
+      isBuzzingRef.current = false; // Reset on error
     }
   };
 
@@ -346,6 +1318,38 @@ export default function PlayerPage() {
 
   const handleConfirmStar = async (useStar: boolean) => {
     if (!isRound4 || !userTeamId || !isMainTeamRound4) return;
+    
+    // Play countdown sound based on question points when confirming star (user interaction)
+    const currentQuestionIndex = r4?.currentQuestionIndex;
+    const questions = r4?.questions;
+    if (currentQuestionIndex !== undefined && questions && questions[currentQuestionIndex]) {
+      const points = questions[currentQuestionIndex].points;
+      
+      try {
+        let soundPath = "";
+        if (points === 10) {
+          soundPath = "/sound/10s.mp3";
+        } else if (points === 20) {
+          soundPath = "/sound/20s.mp3";
+        } else if (points === 30) {
+          soundPath = "/sound/30s.mp3";
+        }
+        
+        if (soundPath) {
+          // Create fresh Audio element on user interaction to ensure it plays
+          const countdownSound = new Audio(soundPath);
+          countdownSound.volume = 0.7;
+          countdownSound.play().catch((error: any) => {
+            if (error.name !== "NotAllowedError") {
+              console.error(`Failed to play ${points}s sound:`, error);
+            }
+          });
+        }
+      } catch (error: any) {
+        console.error("Failed to create/play countdown sound:", error);
+      }
+    }
+    
     try {
       const res = await fetch("/api/player/round4/confirm-star", {
         method: "POST",
@@ -728,6 +1732,8 @@ export default function PlayerPage() {
             round2Meta={round2Meta}
             cnvInput={state.phase === "CNV_ACTIVE" ? cnvInput : ""}
             horizontalAnswers={getHorizontalAnswers()}
+            selectedHorizontalOrder={state.round2State?.currentHorizontalOrder}
+            phase={state.phase}
           />
         }
         questionPanel={
@@ -819,17 +1825,32 @@ export default function PlayerPage() {
       )}
 
       {/* Status Banner */}
-      {state.activeTeamId && !state.currentQuestionId && !isRound2 ? (
-        <div className="mb-4 p-4 bg-gradient-to-r from-yellow-600/20 to-yellow-700/20 border border-yellow-500/50 rounded-lg">
-          <p className="text-white text-center font-bold text-lg">
-            ĐỘI ĐƯỢC MC CHỌN: {selectedTeam?.nameSnapshot || "N/A"}
-          </p>
-        </div>
-      ) : (
-        <div className="mb-4 p-4 bg-gradient-to-r from-blue-600/20 to-blue-700/20 border border-blue-500/50 rounded-lg">
-          <p className="text-white text-center font-bold text-lg">ĐANG CHỜ</p>
-        </div>
-      )}
+      {(() => {
+        // Round 4: Don't show "ĐANG CHỜ" when in valid phases with question
+        if (isRound4 && state.currentQuestionId) {
+          const validRound4Phases = ["R4_STAR_CONFIRMATION", "R4_QUESTION_SHOW", "R4_QUESTION_LOCK_MAIN", "R4_JUDGE_MAIN"];
+          if (validRound4Phases.includes(state.phase)) {
+            return null; // Don't show banner, question will be displayed
+          }
+        }
+        
+        // Default logic for other cases
+        if (state.activeTeamId && !state.currentQuestionId && !isRound2) {
+          return (
+            <div className="mb-4 p-4 bg-gradient-to-r from-yellow-600/20 to-yellow-700/20 border border-yellow-500/50 rounded-lg">
+              <p className="text-white text-center font-bold text-lg">
+                ĐỘI ĐƯỢC MC CHỌN: {selectedTeam?.nameSnapshot || "N/A"}
+              </p>
+            </div>
+          );
+        }
+        
+        return (
+          <div className="mb-4 p-4 bg-gradient-to-r from-blue-600/20 to-blue-700/20 border border-blue-500/50 rounded-lg">
+            <p className="text-white text-center font-bold text-lg">ĐANG CHỜ</p>
+          </div>
+        );
+      })()}
 
       {state.questionTimer && (
         <div className="flex justify-center mb-4">
@@ -915,9 +1936,9 @@ export default function PlayerPage() {
         </div>
       )}
 
-      {/* Round 4: Chỉ hiển thị câu hỏi sau khi đội đã xác nhận ngôi sao */}
+      {/* Round 4: Hiển thị câu hỏi sau khi đội đã xác nhận ngôi sao, hoặc nếu đã dùng ngôi sao thì hiển thị ngay */}
       {state.currentQuestionId && 
-       !(isRound4 && state.phase === "R4_STAR_CONFIRMATION" && isMainTeamRound4) && (
+       !(isRound4 && state.phase === "R4_STAR_CONFIRMATION" && isMainTeamRound4 && !hasUsedStarBefore) && (
         <div className="mb-4">
           <QuestionCard
             questionText={question?.text || "Đang tải câu hỏi..."}

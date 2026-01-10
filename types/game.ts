@@ -12,6 +12,7 @@ export type Phase =
   // Round 2 phases
   | "SETUP"
   | "TURN_SELECT"
+  | "HORIZONTAL_SELECTED"
   | "HORIZONTAL_ACTIVE"
   | "HORIZONTAL_JUDGING"
   | "REVEAL_PIECE"
@@ -183,6 +184,7 @@ export interface Round4State {
   // Lượt & đội
   turnIndex: number; // 0..N-1
   currentTeamId?: string;
+  completedTeamIds?: string[]; // Danh sách team đã hoàn thành lượt chơi
 
   // Gói & câu hỏi
   selectedPackage?: Round4PackagePoints;

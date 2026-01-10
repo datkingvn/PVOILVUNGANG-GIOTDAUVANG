@@ -12,6 +12,8 @@ interface CNVPanelProps {
     answered: boolean;
     rejected?: boolean; // MC không nhận kết quả (result === "WRONG")
   }>;
+  selectedHorizontalOrder?: number; // Hàng ngang được chọn (để highlight)
+  phase?: string; // Current phase để check HORIZONTAL_SELECTED or HORIZONTAL_ACTIVE
 }
 
 type BubbleTone = "hidden" | "active" | "revealed" | "rejected";
@@ -20,6 +22,8 @@ export function CNVPanel({
   round2Meta,
   cnvInput = "",
   horizontalAnswers = [],
+  selectedHorizontalOrder,
+  phase,
 }: CNVPanelProps) {
   const cnvLetterCount = round2Meta?.cnvLetterCount || 0;
 
@@ -181,12 +185,22 @@ export function CNVPanel({
 
   const getLetterCount = (answer: string): number => countLetters(answer);
 
-  const renderWordRow = (answer: string, answered: boolean, rejected: boolean = false) => {
+  const renderWordRow = (answer: string, answered: boolean, rejected: boolean = false, order?: number) => {
     const clean = stripAnswer(answer);
     const totalLetters = getLetterCount(answer);
     const letters = clean.split("");
 
-    const tone: BubbleTone = rejected ? "rejected" : answered ? "revealed" : "hidden";
+    // Determine tone: if selected and phase is HORIZONTAL_SELECTED or HORIZONTAL_ACTIVE, use "active"
+    const isSelected = order !== undefined && selectedHorizontalOrder === order && 
+                       (phase === "HORIZONTAL_SELECTED" || phase === "HORIZONTAL_ACTIVE");
+    
+    const tone: BubbleTone = rejected 
+      ? "rejected" 
+      : answered 
+        ? "revealed" 
+        : isSelected
+          ? "active"
+          : "hidden";
 
     return (
       <div
@@ -228,6 +242,9 @@ export function CNVPanel({
 
   const Indicator = ({ num }: { num: number }) => {
     const on = isPieceRevealed(num);
+    // Also highlight if this is the selected horizontal and phase is HORIZONTAL_SELECTED or HORIZONTAL_ACTIVE
+    const isSelected = selectedHorizontalOrder === num && 
+                       (phase === "HORIZONTAL_SELECTED" || phase === "HORIZONTAL_ACTIVE");
 
     return (
       <div
@@ -235,7 +252,7 @@ export function CNVPanel({
           width: 54,
           height: 54,
           borderRadius: 12,
-          background: on ? ui.indicatorOn : ui.indicatorOff,
+          background: (on || isSelected) ? ui.indicatorOn : ui.indicatorOff,
           border: "2px solid rgba(10,35,70,0.85)",
           boxShadow:
             "0 8px 16px rgba(0,0,0,0.35), inset 0 2px 0 rgba(255,255,255,0.18), inset 0 -3px 0 rgba(0,0,0,0.35)",
@@ -319,7 +336,7 @@ export function CNVPanel({
           {horizontalAnswers.map((h) => {
             return (
               <div key={h.order}>
-                {renderWordRow(h.answer, h.answered, h.rejected || false)}
+                {renderWordRow(h.answer, h.answered, h.rejected || false, h.order)}
               </div>
             );
           })}

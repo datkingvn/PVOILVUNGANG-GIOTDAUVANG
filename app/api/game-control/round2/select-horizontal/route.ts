@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (gameState.phase !== "TURN_SELECT") {
+    if (gameState.phase !== "TURN_SELECT" && gameState.phase !== "HORIZONTAL_SELECTED") {
       return NextResponse.json(
         { error: "Không thể chọn hàng ngang ở phase này" },
         { status: 400 }
@@ -80,7 +80,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if this horizontal has already been answered (check history)
+    // Check if this horizontal has already been answered (block if ANY history entry exists)
+    // Once a question is attempted, it cannot be selected again
     const answeredHorizontalOrders = new Set(
       pkg.history
         .map((h: PackageHistory) => {
@@ -92,24 +93,23 @@ export async function POST(request: NextRequest) {
 
     if (answeredHorizontalOrders.has(horizontalOrder)) {
       return NextResponse.json(
-        { error: "Hàng ngang này đã được trả lời" },
+        { error: "Hàng ngang này đã được thi và không thể chọn lại" },
         { status: 400 }
       );
     }
 
-    // Set phase to HORIZONTAL_ACTIVE
-    gameState.phase = "HORIZONTAL_ACTIVE";
-    gameState.currentQuestionId = targetQuestion._id.toString();
-    gameState.round2State = {
-      currentHorizontalOrder: horizontalOrder,
-    };
+    // Only save selection, don't start question yet
+    // Set phase to HORIZONTAL_SELECTED (not HORIZONTAL_ACTIVE)
+    gameState.phase = "HORIZONTAL_SELECTED";
+    gameState.currentQuestionId = undefined; // Don't set question yet
+    if (!gameState.round2State) {
+      gameState.round2State = {};
+    }
+    gameState.round2State.currentHorizontalOrder = horizontalOrder;
+    gameState.questionTimer = undefined; // Don't start timer yet
 
-    // Start 15-second timer
-    const now = Date.now();
-    gameState.questionTimer = {
-      endsAt: now + 15 * 1000, // 15 seconds
-      running: true,
-    };
+    // Mark round2State as modified for Mongoose
+    gameState.markModified('round2State');
 
     await gameState.save();
     await broadcastGameState();

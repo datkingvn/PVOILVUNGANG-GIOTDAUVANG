@@ -14,11 +14,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { teamId } = body as { teamId?: string };
 
-    console.log("[Round4 Team] Select team request received:", {
-      teamId,
-      timestamp: new Date().toISOString(),
-    });
-
     if (!teamId) {
       return NextResponse.json({ error: "Thiếu teamId" }, { status: 400 });
     }
@@ -41,14 +36,6 @@ export async function POST(request: NextRequest) {
     }
 
     const r4 = gameState.round4State;
-
-    console.log("[Round4 Team] Current state before selection:", {
-      currentTeamId: r4.currentTeamId?.toString(),
-      currentTurnIndex: r4.turnIndex,
-      selectedPackage: r4.selectedPackage,
-      currentQuestionId: gameState.currentQuestionId,
-      phase: gameState.phase,
-    });
 
     // Không cho phép đổi đội nếu:
     // 1. Đã chọn gói (đã có selectedPackage)
@@ -104,12 +91,6 @@ export async function POST(request: NextRequest) {
     const { orderedTeamIds } = getRound4TeamOrder(
       gameState.toObject() as unknown as GameStateType
     );
-    
-    console.log("[Round4 Team] Team order calculation:", {
-      orderedTeamIds,
-      totalTeams: orderedTeamIds.length,
-      requestedTeamId: teamId,
-    });
 
     const teamIndexInOrder = orderedTeamIds.findIndex((id) => id === teamId);
     if (teamIndexInOrder === -1) {
@@ -123,33 +104,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // turnIndex đại diện cho số team đã HOÀN THÀNH lượt chơi
-    // Chỉ các team ở vị trí < turnIndex mới đã hoàn thành
-    const currentTurnIndex = r4.turnIndex ?? 0;
-    
     // Kiểm tra xem team này có thể được chọn không
-    // Team có thể được chọn nếu:
-    // - teamIndexInOrder >= currentTurnIndex (chưa thi hoặc đang thi)
-    if (teamIndexInOrder < currentTurnIndex) {
+    // Team có thể được chọn nếu chưa hoàn thành lượt chơi
+    const completedTeamIds = r4.completedTeamIds || [];
+    const teamIdStr = teamId.toString();
+
+    if (completedTeamIds.includes(teamIdStr)) {
       console.log("[Round4 Team] Error: Team đã hoàn thành lượt chơi", {
         requestedTeamId: teamId,
-        teamIndexInOrder,
-        currentTurnIndex,
-        teamsThatHaveCompleted: orderedTeamIds.slice(0, currentTurnIndex),
+        completedTeamIds,
       });
       return NextResponse.json(
         { error: "Đội này đã hoàn thành lượt chơi, không thể chọn lại" },
         { status: 400 }
       );
     }
-
-    console.log("[Round4 Team] Team selection details:", {
-      selectedTeamId: teamId,
-      teamIndexInOrder,
-      currentTurnIndex,
-      previousTeamId: r4.currentTeamId?.toString(),
-      note: "turnIndex không thay đổi khi chọn team, chỉ thay đổi khi team hoàn thành 3 câu",
-    });
 
     // Chỉ set currentTeamId, KHÔNG thay đổi turnIndex
     // turnIndex chỉ tăng lên khi team hoàn thành 3 câu hỏi (trong advanceRound4QuestionOrTeam)
@@ -168,18 +137,7 @@ export async function POST(request: NextRequest) {
     gameState.phase = "R4_TURN_SELECT_PACKAGE";
 
     await gameState.save();
-    console.log("[Round4 Team] GameState saved after team selection");
-
     await broadcastGameState();
-    console.log("[Round4 Team] GameState broadcasted");
-
-    console.log("[Round4 Team] Team selection completed:", {
-      newTeamId: r4.currentTeamId?.toString(),
-      turnIndex: r4.turnIndex,
-      phase: gameState.phase,
-      teamsThatHaveCompleted: (r4.turnIndex ?? 0) > 0 ? orderedTeamIds.slice(0, r4.turnIndex ?? 0) : [],
-      note: "turnIndex = số team đã hoàn thành lượt chơi, không thay đổi khi chọn team",
-    });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

@@ -62,11 +62,15 @@ export async function POST(request: NextRequest) {
     gameState.phase = "TURN_SELECT";
     gameState.currentQuestionId = undefined;
     gameState.questionTimer = undefined;
-    gameState.round2State = {
-      currentHorizontalOrder: undefined,
-      pendingAnswer: undefined,
-      pendingTeamId: undefined,
-    };
+    if (!gameState.round2State) {
+      gameState.round2State = {};
+    }
+    gameState.round2State.currentHorizontalOrder = undefined;
+    // Keep pendingAnswers if they exist
+    // gameState.round2State.pendingAnswers is preserved
+
+    // Mark round2State as modified for Mongoose
+    gameState.markModified('round2State');
 
     await pkg.save();
     await gameState.save();

@@ -135,6 +135,8 @@ export default function GuestPage() {
             round2Meta={round2Meta}
             cnvInput={state.phase === "CNV_ACTIVE" ? cnvInput : ""}
             horizontalAnswers={getHorizontalAnswers()}
+            selectedHorizontalOrder={state.round2State?.currentHorizontalOrder}
+            phase={state.phase}
           />
         }
         questionPanel={

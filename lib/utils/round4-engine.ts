@@ -10,13 +10,13 @@ import type {
 /**
  * Thời lượng đồng hồ cho từng mức điểm trong Round 4
  * 10 điểm -> 10s
- * 20 điểm -> 15s
- * 30 điểm -> 20s
+ * 20 điểm -> 20s
+ * 30 điểm -> 30s
  */
 const ROUND4_POINTS_TIMER_MAP: Record<number, number> = {
   10: 10_000,
-  20: 15_000,
-  30: 20_000,
+  20: 20_000,
+  30: 30_000,
 };
 
 export function getRound4QuestionDuration(points: Round4QuestionRef["points"]): number {
@@ -129,7 +129,20 @@ export function advanceRound4QuestionOrTeam(
   const r4 = gameState.round4State;
 
   const totalQuestions = r4.questions?.length ?? 0;
-  const currentIndex = r4.currentQuestionIndex ?? 0;
+  let currentIndex = r4.currentQuestionIndex ?? -1; // Use -1 as default to catch undefined
+
+  // Add defensive check and logging
+  if (totalQuestions === 0) {
+    console.error("[Round4] Error: No questions available, cannot advance");
+    throw new Error("Round 4 không có câu hỏi nào để chuyển tiếp");
+  }
+
+  if (currentIndex < 0) {
+    console.error("[Round4] Error: currentQuestionIndex is invalid:", currentIndex);
+    // Set to 0 if somehow invalid but questions exist
+    r4.currentQuestionIndex = 0;
+    currentIndex = 0;
+  }
 
   // Clear steal state & timer khi kết thúc xử lý 1 câu
   gameState.questionTimer = undefined;
@@ -138,13 +151,60 @@ export function advanceRound4QuestionOrTeam(
 
   if (currentIndex + 1 < totalQuestions) {
     // Chuyển sang câu tiếp theo trong cùng lượt
+    // IMPORTANT: Preserve currentTeamId - do not clear it when advancing to next question
+    const preservedTeamId = r4.currentTeamId;
+    const preservedActiveTeamId = gameState.activeTeamId;
+    
     r4.currentQuestionIndex = currentIndex + 1;
     const nextQuestion = r4.questions?.[r4.currentQuestionIndex];
+    if (!nextQuestion) {
+      console.error("[Round4] Error: Next question not found at index:", r4.currentQuestionIndex);
+      throw new Error(`Không tìm thấy câu hỏi tại vị trí ${r4.currentQuestionIndex}`);
+    }
     gameState.currentQuestionId = nextQuestion?.questionId;
-    // Chuyển sang phase chờ xác nhận Ngôi sao hy vọng (không tự động start timer)
-    // Timer sẽ được start sau khi đội xác nhận qua API /player/round4/confirm-star
-    gameState.questionTimer = undefined;
-    gameState.phase = "R4_STAR_CONFIRMATION";
+    
+    // Ensure currentTeamId is preserved - this is critical for not going to R4_IDLE
+    if (!r4.currentTeamId && preservedTeamId) {
+      console.warn("[Round4] Warning: currentTeamId was cleared, restoring it:", preservedTeamId);
+      r4.currentTeamId = preservedTeamId;
+    }
+    if (!gameState.activeTeamId && preservedActiveTeamId) {
+      gameState.activeTeamId = preservedActiveTeamId;
+    }
+    
+    // Kiểm tra xem team đã dùng ngôi sao chưa
+    const currentTeamId = r4.currentTeamId?.toString();
+    let hasUsedStarBefore = false;
+    
+    if (currentTeamId && r4.starUsages) {
+      // Kiểm tra starUsages (có thể là Map hoặc object)
+      let starUsage = null;
+      if (typeof (r4.starUsages as any).get === 'function') {
+        // Mongoose Map
+        starUsage = (r4.starUsages as any).get(currentTeamId);
+      } else {
+        // Plain object
+        starUsage = (r4.starUsages as any)[currentTeamId];
+      }
+      
+      hasUsedStarBefore = !!starUsage && !!starUsage.used;
+    }
+    
+    if (hasUsedStarBefore) {
+      // Team đã dùng ngôi sao -> tự động start timer, không cần xác nhận
+      const duration = getRound4QuestionDuration(nextQuestion.points);
+      const now = Date.now();
+      gameState.questionTimer = {
+        endsAt: now + duration,
+        running: true,
+      };
+      gameState.phase = "R4_QUESTION_SHOW";
+    } else {
+      // Team chưa dùng ngôi sao -> chờ xác nhận
+      gameState.questionTimer = undefined;
+      gameState.phase = "R4_STAR_CONFIRMATION";
+    }
+    
     return;
   }
 
@@ -153,19 +213,19 @@ export function advanceRound4QuestionOrTeam(
   const teamCount = orderedTeamIds.length;
   const currentTurnIndex = r4.turnIndex ?? 0;
 
-  console.log("[Round4 Team] Advancing to next team:", {
-    currentTurnIndex,
-    teamCount,
-    orderedTeamIds,
-    currentTeamId: r4.currentTeamId?.toString(),
-    allTeamsHavePlayed: currentTurnIndex >= teamCount - 1,
-  });
-
   if (currentTurnIndex + 1 < teamCount) {
     const nextTurnIndex = currentTurnIndex + 1;
     const previousTeamId = r4.currentTeamId?.toString();
     
-    // Tăng turnIndex để đánh dấu team hiện tại đã hoàn thành
+    // Lưu team hiện tại vào danh sách đã hoàn thành
+    if (!r4.completedTeamIds) {
+      r4.completedTeamIds = [];
+    }
+    if (previousTeamId && !r4.completedTeamIds.includes(previousTeamId)) {
+      r4.completedTeamIds.push(previousTeamId);
+    }
+    
+    // Tăng turnIndex để đánh dấu số team đã hoàn thành
     r4.turnIndex = nextTurnIndex;
     
     // KHÔNG tự động chọn team tiếp theo - MC phải chọn team thủ công
@@ -182,17 +242,8 @@ export function advanceRound4QuestionOrTeam(
     
     // Chuyển về phase IDLE để yêu cầu MC chọn team
     gameState.phase = "R4_IDLE";
-
-    console.log("[Round4 Team] Team completed, waiting for MC to select next team:", {
-      previousTeamId,
-      previousTurnIndex: currentTurnIndex,
-      newTurnIndex: nextTurnIndex,
-      teamsThatHaveCompleted: orderedTeamIds.slice(0, nextTurnIndex),
-      note: "currentTeamId cleared, MC must select next team manually",
-    });
   } else {
     // Hết đội -> kết thúc Round 4
-    console.log("[Round4 Team] All teams have played, ending Round 4");
     gameState.phase = "R4_END";
     gameState.activeTeamId = undefined;
     gameState.currentQuestionId = undefined;
@@ -223,6 +274,7 @@ export async function initRound4State(): Promise<GameStateType> {
   gameState.round4State = {
     turnIndex: 0,
     currentTeamId: firstTeamId,
+    completedTeamIds: [], // Khởi tạo danh sách đã hoàn thành
     selectedPackage: undefined,
     questionPattern: undefined,
     currentQuestionIndex: undefined,

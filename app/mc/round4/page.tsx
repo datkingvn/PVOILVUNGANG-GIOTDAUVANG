@@ -125,20 +125,20 @@ export default function Round4ManagementPage() {
   }, [state?.teams]);
 
   const finishedTeams = useMemo(() => {
-    if (!state || !r4 || !orderedTeamIds.length) return [];
-    const turnIndex = r4.turnIndex ?? 0;
+    if (!state || !r4) return [];
     
-    if (turnIndex <= 0) return [];
+    // Sử dụng completedTeamIds nếu có, fallback về logic cũ nếu không có (backward compatibility)
+    const completedTeamIds = r4.completedTeamIds || [];
     
-    // Lấy các teamId đã thi từ orderedTeamIds
-    const finishedTeamIds = orderedTeamIds.slice(0, turnIndex);
-    // Tìm teams tương ứng
+    if (completedTeamIds.length === 0) return [];
+    
+    // Tìm teams tương ứng với completedTeamIds
     const finished = state.teams.filter((team) => 
-      finishedTeamIds.includes(team.teamId.toString())
+      completedTeamIds.includes(team.teamId.toString())
     );
     
     return finished;
-  }, [state, r4, orderedTeamIds]);
+  }, [state, r4]);
 
   // Kiểm tra trạng thái Ngôi sao hy vọng cho câu hỏi hiện tại
   const currentStarStatus = useMemo(() => {
@@ -355,7 +355,7 @@ export default function Round4ManagementPage() {
               {currentTeam ? currentTeam.nameSnapshot : "Chưa chọn"}
             </div>
             <div className="text-sm text-gray-300">
-              Lượt { (r4.turnIndex ?? 0) + 1 } / {state.teams.length}
+              Lượt { (r4.completedTeamIds?.length ?? r4.turnIndex ?? 0) + 1 } / {state.teams.length}
             </div>
             {finishedTeams.length > 0 && (
               <div className="mt-2 text-xs text-gray-400">
@@ -673,14 +673,11 @@ export default function Round4ManagementPage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {state.teams.map((team, index) => {
-                // Tính toán hasPlayed dựa trên turnIndex và vị trí của team trong orderedTeamIds
-                // turnIndex = số team đã HOÀN THÀNH lượt chơi
-                // Team đã thi nếu vị trí của đội trong orderedTeamIds < turnIndex
+                // Tính toán hasPlayed dựa trên completedTeamIds
+                // Team đã thi nếu teamId có trong completedTeamIds
                 const teamIdStr = team.teamId.toString();
-                const teamIndexInOrder = orderedTeamIds.findIndex((id) => id === teamIdStr);
-                const currentTurnIndex = r4.turnIndex ?? 0;
-                // Đội đã hoàn thành nếu vị trí của đội trong orderedTeamIds < turnIndex
-                const hasPlayed = teamIndexInOrder >= 0 && teamIndexInOrder < currentTurnIndex;
+                const completedTeamIds = r4.completedTeamIds || [];
+                const hasPlayed = completedTeamIds.includes(teamIdStr);
                 const isActive = team.teamId === r4.currentTeamId;
                 const cannotChange = !!r4.selectedPackage || !!state.currentQuestionId;
                 const isDisabled = hasPlayed || selectingTeamId === team.teamId || cannotChange;

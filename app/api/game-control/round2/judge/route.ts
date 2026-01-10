@@ -222,12 +222,20 @@ export async function POST(request: NextRequest) {
           
           gameState.phase = "REVEAL_PIECE";
           gameState.currentQuestionId = undefined;
+          if (!gameState.round2State) {
+            gameState.round2State = {};
+          }
           gameState.round2State.currentHorizontalOrder = undefined;
+          gameState.markModified('round2State');
         } else {
           // If no correct answers, go back to turn select (no piece revealed)
           gameState.phase = "TURN_SELECT";
           gameState.currentQuestionId = undefined;
+          if (!gameState.round2State) {
+            gameState.round2State = {};
+          }
           gameState.round2State.currentHorizontalOrder = undefined;
+          gameState.markModified('round2State');
         }
       } else {
         // If there are still answers to judge, stay in current phase (HORIZONTAL_ACTIVE or HORIZONTAL_JUDGING)

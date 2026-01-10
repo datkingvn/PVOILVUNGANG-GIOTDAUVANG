@@ -49,20 +49,36 @@ export async function POST(request: NextRequest) {
       // Khởi động timer nếu chưa có (coi như đội đã xác nhận không dùng ngôi sao)
       if (!gameState.questionTimer && r4 && r4.currentQuestionIndex !== undefined && r4.questions) {
         const qRef = r4.questions[r4.currentQuestionIndex];
+        if (!qRef) {
+          console.error("[Round4 Star] Error: Question not found at index:", r4.currentQuestionIndex);
+          return NextResponse.json(
+            { error: `Không tìm thấy câu hỏi tại vị trí ${r4.currentQuestionIndex}` },
+            { status: 400 }
+          );
+        }
         const duration = getRound4QuestionDuration(qRef.points);
         const now = Date.now();
         gameState.questionTimer = {
           endsAt: now + duration,
           running: true,
         };
-        console.log("[Round4 Star] Auto-started timer from R4_STAR_CONFIRMATION");
+      } else if (!r4 || r4.currentQuestionIndex === undefined || !r4.questions) {
+        console.error("[Round4 Star] Error: Missing required data for judgment:", {
+          hasR4: !!r4,
+          currentQuestionIndex: r4?.currentQuestionIndex,
+          hasQuestions: !!r4?.questions,
+          questionsLength: r4?.questions?.length,
+        });
+        return NextResponse.json(
+          { error: "Không thể chấm: thiếu thông tin câu hỏi hiện tại" },
+          { status: 400 }
+        );
       }
       // Khóa timer và chuyển sang phase chấm
       if (gameState.questionTimer) {
         gameState.questionTimer.running = false;
       }
       gameState.phase = "R4_JUDGE_MAIN";
-      console.log("[Round4 Star] Auto-skipped star confirmation, moved to R4_JUDGE_MAIN");
     } else if (gameState.phase === "R4_QUESTION_SHOW") {
       // Cho phép chấm khi đang hiển thị câu hỏi (timer có thể đã hết hoặc đang chạy)
       if (gameState.questionTimer) {
@@ -195,16 +211,6 @@ export async function POST(request: NextRequest) {
       const gain = hasStarOnThisQuestion ? base * 2 : base;
       gameState.teams[teamIndex].score += gain;
 
-      console.log("[Round4 Star] Team answered correctly:", {
-        teamKey,
-        basePoints: base,
-        hasStar: hasStarOnThisQuestion,
-        gain,
-        scoreBefore: teamBeforeScore,
-        scoreAfter: gameState.teams[teamIndex].score,
-        scoreIncrease: gain,
-      });
-
       // Kết thúc câu, chuyển tiếp
       advanceRound4QuestionOrTeam(gameState as any);
     } else {
@@ -212,21 +218,6 @@ export async function POST(request: NextRequest) {
       if (hasStarOnThisQuestion) {
         // Trừ full điểm vì Star, bất kể có steal hay không
         gameState.teams[teamIndex].score -= points;
-        console.log("[Round4 Star] Team answered wrong WITH star penalty:", {
-          teamKey,
-          basePoints: points,
-          scoreBefore: teamBeforeScore,
-          scoreAfter: gameState.teams[teamIndex].score,
-          scoreDecrease: points,
-        });
-      } else {
-        console.log("[Round4 Star] Team answered wrong WITHOUT star:", {
-          teamKey,
-          basePoints: points,
-          scoreBefore: teamBeforeScore,
-          scoreAfter: gameState.teams[teamIndex].score,
-          noPenalty: true,
-        });
       }
 
       // Mở cửa sổ giành quyền 5s
@@ -238,14 +229,10 @@ export async function POST(request: NextRequest) {
         buzzedTeams: [],
       };
       gameState.phase = "R4_STEAL_WINDOW";
-      console.log("[Round4 Star] Steal window opened");
     }
 
     await gameState.save();
-    console.log("[Round4 Star] GameState saved after judgment");
-
     await broadcastGameState();
-    console.log("[Round4 Star] GameState broadcasted after judgment");
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
