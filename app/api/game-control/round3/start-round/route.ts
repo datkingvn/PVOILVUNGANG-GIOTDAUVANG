@@ -6,6 +6,11 @@ import { requireMC } from "@/lib/auth/middleware";
 import { broadcastGameState } from "@/lib/pusher/server";
 import type { TeamScore } from "@/types/game";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const runtime = "nodejs";
+export const preferredRegion = "sin1";
+
 export async function POST() {
   try {
     await requireMC();
@@ -80,13 +85,29 @@ export async function POST() {
 
     await gameState.save();
 
-    await broadcastGameState();
+    const stateObj = gameState.toObject({ flattenMaps: true });
+    const timing = await broadcastGameState(stateObj);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json(
+      { 
+        success: true,
+        timing,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "Lỗi server" },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
     );
   }
 }

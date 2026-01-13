@@ -236,7 +236,7 @@ export default function PlayerPage() {
     }
 
     let canceled = false;
-    fetch(`/api/questions/${qId}`)
+    fetch(`/api/questions/${qId}`, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         if (canceled) return;
@@ -253,7 +253,7 @@ export default function PlayerPage() {
   useEffect(() => {
     if (!state?.round || state.round === "ROUND4") return;
 
-    fetch(`/api/packages/public?round=${state.round}`)
+    fetch(`/api/packages/public?round=${state.round}`, { cache: "no-store" })
       .then((res) => res.json())
       .then(setPackages)
       .catch(console.error);
@@ -261,14 +261,14 @@ export default function PlayerPage() {
 
   useEffect(() => {
     if (state?.activePackageId && state?.round === "ROUND2") {
-      fetch(`/api/packages/${state.activePackageId}`)
+      fetch(`/api/packages/${state.activePackageId}`, { cache: "no-store" })
         .then((res) => res.json())
         .then(setPackageData)
         .catch(console.error);
     } else if (state?.activePackageId && state?.round === "ROUND1") {
       // Fetch package data for Round 1 to track history changes
       const fetchPackageData = () => {
-        fetch(`/api/packages/${state.activePackageId}`)
+        fetch(`/api/packages/${state.activePackageId}`, { cache: "no-store" })
           .then((res) => res.json())
           .then(setPackageData)
           .catch(console.error);
@@ -299,7 +299,7 @@ export default function PlayerPage() {
   }, [state?.activePackageId, state?.round]);
 
   useEffect(() => {
-    fetch("/api/teams/public")
+    fetch("/api/teams/public", { cache: "no-store" })
       .then((res) => res.json())
       .then(setTeams)
       .catch(console.error);

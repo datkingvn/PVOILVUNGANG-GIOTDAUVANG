@@ -6,6 +6,11 @@ import { broadcastGameState } from "@/lib/pusher/server";
 import { advanceRound4QuestionOrTeam, getRound4QuestionDuration } from "@/lib/utils/round4-engine";
 import type { TeamScore } from "@/types/game";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const runtime = "nodejs";
+export const preferredRegion = "sin1";
+
 export async function POST(request: NextRequest) {
   try {
     await requireMC();
@@ -232,9 +237,20 @@ export async function POST(request: NextRequest) {
     }
 
     await gameState.save();
-    await broadcastGameState();
+    const stateObj = gameState.toObject({ flattenMaps: true });
+    const timing = await broadcastGameState(stateObj);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json(
+      { 
+        success: true,
+        timing,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   } catch (error: any) {
     console.error("[Round4 Star] Error in judge-main:", {
       error: error.message,
@@ -242,7 +258,12 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(
       { error: error.message || "Lỗi chấm đáp án đội đang thi Round 4" },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
     );
   }
 }

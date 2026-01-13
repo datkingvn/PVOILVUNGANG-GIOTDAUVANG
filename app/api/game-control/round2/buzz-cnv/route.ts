@@ -6,6 +6,11 @@ import Team from "@/lib/db/models/Team";
 import { requireTeam } from "@/lib/auth/middleware";
 import { broadcastGameState } from "@/lib/pusher/server";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const runtime = "nodejs";
+export const preferredRegion = "sin1";
+
 export async function POST(request: NextRequest) {
   try {
     const team = await requireTeam();
@@ -93,14 +98,30 @@ export async function POST(request: NextRequest) {
 
     await pkg.save();
     await gameState.save();
-    await broadcastGameState();
+    const stateObj = gameState.toObject({ flattenMaps: true });
+    const timing = await broadcastGameState(stateObj);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json(
+      { 
+        success: true,
+        timing,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   } catch (error: any) {
     console.error("Error buzzing CNV:", error);
     return NextResponse.json(
       { error: error.message || "Lỗi bấm chuông CNV" },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
     );
   }
 }

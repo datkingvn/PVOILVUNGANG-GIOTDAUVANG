@@ -14,6 +14,11 @@ import {
 import { normalizeAnswer } from "@/lib/utils/round2-engine";
 import type { PendingAnswer, Round3AnswerResult, TeamScore } from "@/types/game";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const runtime = "nodejs";
+export const preferredRegion = "sin1";
+
 export async function POST(request: NextRequest) {
   try {
     await requireMC();
@@ -269,17 +274,31 @@ export async function POST(request: NextRequest) {
 
     await gameState.save();
 
-    await broadcastGameState();
+    const stateObj = gameState.toObject({ flattenMaps: true });
+    const timing = await broadcastGameState(stateObj);
 
-    return NextResponse.json({
-      success: true,
-      remainingAnswersCount: remainingAnswers.length,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        remainingAnswersCount: remainingAnswers.length,
+        timing,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   } catch (error: any) {
     console.error("Error judging answer:", error);
     return NextResponse.json(
       { error: error.message || "Lỗi chấm đáp án" },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
     );
   }
 }

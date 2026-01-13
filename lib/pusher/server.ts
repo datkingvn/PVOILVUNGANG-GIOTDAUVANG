@@ -9,13 +9,9 @@ const pusher = new Pusher({
   useTLS: true,
 });
 
-export async function broadcastGameState() {
-  const gameState = await GameState.findOne();
-  if (!gameState) return;
+const DEBUG_REALTIME = process.env.DEBUG_REALTIME === "1";
 
-  // Convert to plain object and ensure nested objects are properly serialized
-  const stateObj = gameState.toObject({ flattenMaps: true });
-  
+function serializeGameState(stateObj: any): any {
   // Ensure pendingAnswers is a plain array (not Mongoose document array)
   if (stateObj.round2State?.pendingAnswers) {
     stateObj.round2State.pendingAnswers = JSON.parse(JSON.stringify(stateObj.round2State.pendingAnswers));
@@ -56,10 +52,63 @@ export async function broadcastGameState() {
     stateObj.round3State.pendingAnswers = JSON.parse(JSON.stringify(stateObj.round3State.pendingAnswers));
   }
 
+  return stateObj;
+}
+
+export interface BroadcastTiming {
+  ms: number;
+  at: number;
+  channel: string;
+  event: string;
+}
+
+export async function broadcastGameState(stateObj?: any): Promise<BroadcastTiming | null> {
+  const t0 = Date.now();
+  let finalStateObj = stateObj;
+
+  // If stateObj not provided, fetch from DB
+  if (!finalStateObj) {
+    const dbReadStart = Date.now();
+    const gameState = await GameState.findOne();
+    if (!gameState) return null;
+    
+    if (DEBUG_REALTIME) {
+      const dbReadMs = Date.now() - dbReadStart;
+      console.log(`[RT] db-read ms=${dbReadMs}`);
+    }
+
+    finalStateObj = gameState.toObject({ flattenMaps: true });
+  }
+
+  // Serialize the state
+  const serializedState = serializeGameState(finalStateObj);
+  const serverTime = Date.now();
+
+  // Trigger Pusher event with timing
+  const triggerStart = Date.now();
   await pusher.trigger("game-state", "state:update", {
-    state: stateObj,
-    serverTime: Date.now(), // Include server time for client sync
+    state: serializedState,
+    serverTime,
+    at: serverTime, // Include timestamp for client delay calculation
   });
+  const triggerMs = Date.now() - triggerStart;
+
+  const timing: BroadcastTiming = {
+    ms: Date.now() - t0,
+    at: serverTime,
+    channel: "game-state",
+    event: "state:update",
+  };
+
+  if (DEBUG_REALTIME) {
+    const region = process.env.VERCEL_REGION || "unknown";
+    const requestId = process.env.VERCEL_REQUEST_ID || "unknown";
+    console.log(
+      `[RT] trigger ms=${timing.ms} trigger_ms=${triggerMs} channel=${timing.channel} event=${timing.event} region=${region} request_id=${requestId}`
+    );
+  }
+
+  return timing;
 }
 
 export default pusher;

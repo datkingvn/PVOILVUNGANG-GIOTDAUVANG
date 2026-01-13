@@ -7,6 +7,11 @@ import { requireTeam } from "@/lib/auth/middleware";
 import { broadcastGameState } from "@/lib/pusher/server";
 import type { PendingAnswer } from "@/types/game";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const runtime = "nodejs";
+export const preferredRegion = "sin1";
+
 export async function POST(request: NextRequest) {
   try {
     const team = await requireTeam();
@@ -125,17 +130,31 @@ export async function POST(request: NextRequest) {
     console.log("Pending answers count:", updatedState.round2State?.pendingAnswers?.length || 0);
     console.log("Pending answers data:", JSON.stringify(updatedState.round2State?.pendingAnswers, null, 2));
     
-    await broadcastGameState();
+    const stateObj = updatedState.toObject({ flattenMaps: true });
+    const timing = await broadcastGameState(stateObj);
 
-    return NextResponse.json({ 
-      success: true,
-      pendingAnswersCount: updatedState?.round2State?.pendingAnswers?.length || 0
-    });
+    return NextResponse.json(
+      { 
+        success: true,
+        pendingAnswersCount: updatedState?.round2State?.pendingAnswers?.length || 0,
+        timing,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   } catch (error: any) {
     console.error("Error submitting answer:", error);
     return NextResponse.json(
       { error: error.message || "Lỗi submit đáp án" },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
     );
   }
 }

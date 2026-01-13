@@ -13,6 +13,11 @@ import {
 } from "@/lib/utils/round2-engine";
 import type { PendingAnswer, TeamScore, PackageHistory, Round2Mapping } from "@/types/game";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const runtime = "nodejs";
+export const preferredRegion = "sin1";
+
 export async function POST(request: NextRequest) {
   try {
     await requireMC();
@@ -373,23 +378,37 @@ export async function POST(request: NextRequest) {
     await pkg.save();
     await gameState.save();
     
-    await broadcastGameState();
+    const stateObj = gameState.toObject({ flattenMaps: true });
+    const timing = await broadcastGameState(stateObj);
 
-    return NextResponse.json({
-      success: true,
-      suggestion: isHorizontal && gameState.currentQuestionId && pendingAnswer
-        ? suggestAnswerMatch(
-            pendingAnswer.answer,
-            (await Question.findById(gameState.currentQuestionId))?.answerText || "",
-            (await Question.findById(gameState.currentQuestionId))?.acceptedAnswers
-          )
-        : undefined,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        suggestion: isHorizontal && gameState.currentQuestionId && pendingAnswer
+          ? suggestAnswerMatch(
+              pendingAnswer.answer,
+              (await Question.findById(gameState.currentQuestionId))?.answerText || "",
+              (await Question.findById(gameState.currentQuestionId))?.acceptedAnswers
+            )
+          : undefined,
+        timing,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   } catch (error: any) {
     console.error("Error judging answer:", error);
     return NextResponse.json(
       { error: error.message || "Lỗi chấm đáp án" },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
     );
   }
 }

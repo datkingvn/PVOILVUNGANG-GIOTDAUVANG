@@ -74,7 +74,7 @@ export default function MCDashboardPage() {
   }, [router]);
 
   useEffect(() => {
-    fetch("/api/teams")
+    fetch("/api/teams", { cache: "no-store" })
       .then((res) => res.json())
       .then(setTeams)
       .catch(console.error);
@@ -84,7 +84,7 @@ export default function MCDashboardPage() {
     const roundToFetch = selectedRound || (state?.round as Round | null);
     if (roundToFetch) {
       setIsLoadingPackages(true);
-      fetch(`/api/packages?round=${roundToFetch}`)
+      fetch(`/api/packages?round=${roundToFetch}`, { cache: "no-store" })
         .then((res) => res.json())
         .then((data) => {
           setPackages(data);
@@ -105,7 +105,7 @@ export default function MCDashboardPage() {
     const roundToFetch = selectedRound || (state?.round as Round | null);
     // When phase becomes IDLE and activePackageId is cleared, it means a package just completed
     if (roundToFetch && state?.phase === "IDLE" && !state?.activePackageId && !state?.currentQuestionId) {
-      fetch(`/api/packages?round=${roundToFetch}`)
+      fetch(`/api/packages?round=${roundToFetch}`, { cache: "no-store" })
         .then((res) => res.json())
         .then((data) => {
           setPackages(data);
@@ -116,7 +116,7 @@ export default function MCDashboardPage() {
 
   useEffect(() => {
     if (state?.currentQuestionId) {
-      fetch(`/api/questions/${state.currentQuestionId}`)
+      fetch(`/api/questions/${state.currentQuestionId}`, { cache: "no-store" })
         .then((res) => res.json())
         .then(setQuestion)
         .catch(console.error);
@@ -127,7 +127,7 @@ export default function MCDashboardPage() {
   useEffect(() => {
     if (state?.activePackageId && state?.round === "ROUND2") {
       const fetchPackageData = () => {
-        fetch(`/api/packages/${state.activePackageId}`)
+        fetch(`/api/packages/${state.activePackageId}`, { cache: "no-store" })
           .then((res) => res.json())
           .then((data) => {
             setPackageData(data);
@@ -135,7 +135,7 @@ export default function MCDashboardPage() {
           .catch(console.error);
         
         // Fetch horizontal questions to check which ones are answered
-        fetch(`/api/questions/public?packageId=${state.activePackageId}&round=ROUND2`)
+        fetch(`/api/questions/public?packageId=${state.activePackageId}&round=ROUND2`, { cache: "no-store" })
           .then((res) => res.json())
           .then((questions) => {
             if (Array.isArray(questions)) {
@@ -156,7 +156,7 @@ export default function MCDashboardPage() {
     } else if (state?.activePackageId && state?.round === "ROUND1") {
       // Fetch package data for Round 1 to track history changes
       const fetchPackageData = () => {
-        fetch(`/api/packages/${state.activePackageId}`)
+        fetch(`/api/packages/${state.activePackageId}`, { cache: "no-store" })
           .then((res) => res.json())
           .then((data) => {
             setPackageData(data);
@@ -502,7 +502,7 @@ export default function MCDashboardPage() {
           setSelectedPackageId("");
           setQuestion(null);
           if (selectedRound) {
-            fetch(`/api/packages?round=${selectedRound}`)
+            fetch(`/api/packages?round=${selectedRound}`, { cache: "no-store" })
               .then((res) => res.json())
               .then(setPackages)
               .catch(console.error);
