@@ -4,7 +4,7 @@ import GameState from "@/lib/db/models/GameState";
 import Package from "@/lib/db/models/Package";
 import Question from "@/lib/db/models/Question";
 import { requireMC } from "@/lib/auth/middleware";
-import { broadcastGameState } from "@/lib/pusher/server";
+import { broadcastGameState } from "@/lib/socket/server";
 import type { PackageHistory } from "@/types/game";
 
 export async function POST(request: NextRequest) {
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     if (gameState.phase !== "TURN_SELECT" && gameState.phase !== "HORIZONTAL_SELECTED") {
       return NextResponse.json(
-        { error: "Không thể chọn hàng ngang ở phase này" },
+        { error: `Không thể chọn hàng ngang ở phase này. Phase hiện tại: ${gameState.phase || "IDLE"}. Vui lòng bắt đầu game và chọn đội trước.` },
         { status: 400 }
       );
     }
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     const currentTeamId = pkg.round2Meta.turnState?.currentTeamId || gameState.activeTeamId;
     if (!currentTeamId) {
       return NextResponse.json(
-        { error: "Không có đội đang lượt" },
+        { error: "Không có đội đang lượt. Vui lòng chọn đội trước khi chọn hàng ngang." },
         { status: 400 }
       );
     }

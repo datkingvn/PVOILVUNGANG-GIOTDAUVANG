@@ -145,7 +145,10 @@ export interface Round3AnswerResult {
 export interface Round3State {
   currentQuestionIndex?: number; // 0-3
   pendingAnswers?: PendingAnswer[]; // Array of answers from all teams
-  questionResults?: { [questionIndex: number]: Round3AnswerResult[] }; // Results for each question
+  // Stored as a MongoDB Map in DB, but often becomes a plain object after JSON serialization (e.g. flattenMaps)
+  questionResults?:
+    | Map<string, Round3AnswerResult[]>
+    | Record<string, Round3AnswerResult[]>; // Results for each question (key is questionIndex as string)
 }
 
 // Round 4 specific types
@@ -208,6 +211,9 @@ export interface Round4State {
   // Steal window & trả lời
   stealWindow?: Round4StealWindow;
   stealAnswer?: Round4StealAnswer;
+
+  // Video sync (server epoch ms when Round 4 video starts showing)
+  videoStartedAt?: number;
 }
 
 export interface GameState {

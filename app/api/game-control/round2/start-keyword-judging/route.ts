@@ -3,7 +3,7 @@ import connectDB from "@/lib/db/connection";
 import GameState from "@/lib/db/models/GameState";
 import Package from "@/lib/db/models/Package";
 import { requireMC } from "@/lib/auth/middleware";
-import { broadcastGameState } from "@/lib/pusher/server";
+import { broadcastGameState } from "@/lib/socket/server";
 
 export async function POST(request: NextRequest) {
   try {

@@ -4,7 +4,7 @@ import GameState from "@/lib/db/models/GameState";
 import Package from "@/lib/db/models/Package";
 import Team from "@/lib/db/models/Team";
 import { requireMC } from "@/lib/auth/middleware";
-import { broadcastGameState } from "@/lib/pusher/server";
+import { broadcastGameState } from "@/lib/socket/server";
 import type { TeamScore } from "@/types/game";
 
 export async function POST(request: NextRequest) {

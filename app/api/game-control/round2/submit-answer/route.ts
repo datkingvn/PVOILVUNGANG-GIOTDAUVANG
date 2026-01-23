@@ -4,13 +4,8 @@ import GameState from "@/lib/db/models/GameState";
 import Package from "@/lib/db/models/Package";
 import Team from "@/lib/db/models/Team";
 import { requireTeam } from "@/lib/auth/middleware";
-import { broadcastGameState } from "@/lib/pusher/server";
+import { broadcastGameState } from "@/lib/socket/server";
 import type { PendingAnswer } from "@/types/game";
-
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-export const runtime = "nodejs";
-export const preferredRegion = "sin1";
 
 export async function POST(request: NextRequest) {
   try {
@@ -130,31 +125,17 @@ export async function POST(request: NextRequest) {
     console.log("Pending answers count:", updatedState.round2State?.pendingAnswers?.length || 0);
     console.log("Pending answers data:", JSON.stringify(updatedState.round2State?.pendingAnswers, null, 2));
     
-    const stateObj = updatedState.toObject({ flattenMaps: true });
-    const timing = await broadcastGameState(stateObj);
+    await broadcastGameState();
 
-    return NextResponse.json(
-      { 
-        success: true,
-        pendingAnswersCount: updatedState?.round2State?.pendingAnswers?.length || 0,
-        timing,
-      },
-      {
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
-    );
+    return NextResponse.json({ 
+      success: true,
+      pendingAnswersCount: updatedState?.round2State?.pendingAnswers?.length || 0
+    });
   } catch (error: any) {
     console.error("Error submitting answer:", error);
     return NextResponse.json(
       { error: error.message || "Lỗi submit đáp án" },
-      { 
-        status: 500,
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
+      { status: 500 }
     );
   }
 }

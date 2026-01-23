@@ -4,7 +4,7 @@ import GameState from "@/lib/db/models/GameState";
 import Package from "@/lib/db/models/Package";
 import Question from "@/lib/db/models/Question";
 import { requireMC } from "@/lib/auth/middleware";
-import { broadcastGameState } from "@/lib/pusher/server";
+import { broadcastGameState } from "@/lib/socket/server";
 
 export async function POST() {
   try {

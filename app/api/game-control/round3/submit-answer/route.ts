@@ -4,7 +4,7 @@ import GameState from "@/lib/db/models/GameState";
 import Package from "@/lib/db/models/Package";
 import Question from "@/lib/db/models/Question";
 import { requireTeam } from "@/lib/auth/middleware";
-import { broadcastGameState } from "@/lib/pusher/server";
+import { broadcastGameState } from "@/lib/socket/server";
 import {
   calculateRound3Score,
   sortAnswersByTimestamp,
@@ -74,34 +74,29 @@ export async function POST(request: NextRequest) {
     // Get existing pending answers
     const currentPendingAnswers = gameState.round3State?.pendingAnswers || [];
 
-    // Check if team already submitted an answer
-    const alreadySubmitted = currentPendingAnswers.some(
+    // Check if team already submitted - if yes, update instead of reject
+    const existingIndex = currentPendingAnswers.findIndex(
       (pa: PendingAnswer) => pa.teamId === teamId
     );
-    if (alreadySubmitted) {
-      return NextResponse.json(
-        { error: "Đội đã submit đáp án rồi" },
-        { status: 400 }
-      );
+
+    let updatedAnswers: PendingAnswer[];
+    if (existingIndex >= 0) {
+      // Update existing answer
+      updatedAnswers = [...currentPendingAnswers];
+      updatedAnswers[existingIndex] = {
+        teamId,
+        answer: answer.trim(),
+        submittedAt: now, // Update timestamp
+      };
+    } else {
+      // Add new answer
+      const newAnswer: PendingAnswer = {
+        teamId,
+        answer: answer.trim(),
+        submittedAt: now,
+      };
+      updatedAnswers = [...currentPendingAnswers, newAnswer];
     }
-
-    // Get current question for auto-judging
-    const question = await Question.findById(gameState.currentQuestionId);
-    if (!question) {
-      return NextResponse.json(
-        { error: "Không tìm thấy câu hỏi" },
-        { status: 404 }
-      );
-    }
-
-    // Add answer to pending answers array
-    const newAnswer: PendingAnswer = {
-      teamId,
-      answer: answer.trim(),
-      submittedAt: now,
-    };
-
-    const updatedAnswers = [...currentPendingAnswers, newAnswer];
 
     // Initialize round3State if not exists
     if (!gameState.round3State) {
@@ -111,149 +106,12 @@ export async function POST(request: NextRequest) {
         questionResults: {},
       };
     }
-    // Ensure questionResults is initialized (Mongoose will convert to Map)
-    if (!gameState.round3State.questionResults) {
-      gameState.round3State.questionResults = {};
-    }
-    // Convert to Map if it's an object
-    if (!(gameState.round3State.questionResults instanceof Map)) {
-      const map = new Map();
-      const questionResults = gameState.round3State.questionResults;
-      if (questionResults) {
-        Object.keys(questionResults).forEach(key => {
-          map.set(key, (questionResults as Record<string, any>)[key]);
-        });
-      }
-      gameState.round3State.questionResults = map as any;
-    }
 
-    const currentQuestionIndex = gameState.round3State.currentQuestionIndex ?? 0;
-    const questionIndexKey = String(currentQuestionIndex); // Mongoose Map only supports string keys
-    
-    const questionResults = gameState.round3State.questionResults;
-    if (questionResults && questionResults instanceof Map) {
-      if (!questionResults.has(questionIndexKey)) {
-        questionResults.set(questionIndexKey, []);
-      }
-    }
-
-    // Auto-judge: Check if answer is correct
-    let isCorrect = false;
-    const normalizedUserAnswer = normalizeAnswer(answer.trim());
-
-    if (question.type === "arrange") {
-      // For arrange questions, compare the order of steps
-      // User answer should be in format like "ABCD" or "A B C D"
-      const normalizedUser = normalizeArrangeAnswer(answer.trim());
-      if (question.answerText) {
-        const normalizedCorrect = normalizeArrangeAnswer(question.answerText);
-        isCorrect = normalizedUser === normalizedCorrect;
-      }
-      // Also check acceptedAnswers for arrange
-      if (!isCorrect && question.acceptedAnswers && question.acceptedAnswers.length > 0) {
-        for (const accepted of question.acceptedAnswers) {
-          if (normalizeArrangeAnswer(accepted) === normalizedUser) {
-            isCorrect = true;
-            break;
-          }
-        }
-      }
-    } else {
-      // For reasoning and video questions, compare text
-      if (question.answerText) {
-        const normalizedCorrect = normalizeAnswer(question.answerText);
-        isCorrect = normalizedUserAnswer === normalizedCorrect;
-      }
-      // Check acceptedAnswers
-      if (!isCorrect && question.acceptedAnswers && question.acceptedAnswers.length > 0) {
-        for (const accepted of question.acceptedAnswers) {
-          if (normalizeAnswer(accepted) === normalizedUserAnswer) {
-            isCorrect = true;
-            break;
-          }
-        }
-      }
-    }
-
-    // Add to questionResults immediately (auto-judged)
-    const questionResultsMap = gameState.round3State.questionResults;
-    if (!questionResultsMap || !(questionResultsMap instanceof Map)) {
-      return NextResponse.json(
-        { error: "Question results không hợp lệ" },
-        { status: 500 }
-      );
-    }
-    
-    let currentQuestionResults = questionResultsMap.get(questionIndexKey) || [];
-    const result: Round3AnswerResult = {
-      teamId,
-      isCorrect,
-      score: 0, // Will be calculated based on submission order
-      submissionOrder: 0, // Will be calculated based on submission order
-      submittedAt: now,
-      judgedAt: now,
-      answer: answer.trim(), // Store answer text for display
-    };
-    currentQuestionResults.push(result);
-    // Update Map with modified array
-    questionResultsMap.set(questionIndexKey, currentQuestionResults);
-
-    // Calculate scores for all correct answers based on submission order
-    const correctResults = currentQuestionResults.filter((r: Round3AnswerResult) => r.isCorrect);
-    if (correctResults.length > 0) {
-      // Sort correct answers by submission time
-      const sortedCorrectResults = [...correctResults].sort(
-        (a, b) => a.submittedAt - b.submittedAt
-      );
-
-      // Store old scores before recalculating
-      const oldScores = new Map<string, number>();
-      currentQuestionResults.forEach((r: Round3AnswerResult) => {
-        if (r.isCorrect) {
-          oldScores.set(r.teamId, r.score || 0);
-        }
-      });
-
-      // Update scores and submission order for all correct answers
-      sortedCorrectResults.forEach((correctResult, index) => {
-        const order = index + 1;
-        const score = calculateRound3Score(order);
-        const oldScore = oldScores.get(correctResult.teamId) || 0;
-        correctResult.submissionOrder = order;
-        correctResult.score = score;
-
-        // Update team score: subtract old score, add new score
-        const teamIdx = gameState.teams.findIndex(
-          (t: TeamScore) => t.teamId === correctResult.teamId
-        );
-        if (teamIdx !== -1) {
-          gameState.teams[teamIdx].score = gameState.teams[teamIdx].score - oldScore + score;
-        }
-      });
-    }
-    
-    // Update Map with modified questionResults array after score calculation
-    questionResultsMap.set(questionIndexKey, currentQuestionResults);
-
-    // Update pending answers (remove this team's answer since it's already judged)
-    gameState.round3State.pendingAnswers = updatedAnswers.filter(
-      (pa: PendingAnswer) => pa.teamId !== teamId
-    );
-
-    // Check if all teams have submitted
-    // Get total number of teams
-    const totalTeams = gameState.teams.length;
-    const submittedCount = currentQuestionResults.length;
-    
-    // If all teams have submitted, automatically move to results phase
-    if (submittedCount >= totalTeams) {
-      gameState.phase = "ROUND3_RESULTS";
-    }
+    // Update pending answers
+    gameState.round3State.pendingAnswers = updatedAnswers;
 
     // Mark modified for nested objects
     gameState.markModified("round3State");
-    gameState.markModified("round3State.questionResults");
-    gameState.markModified("teams");
 
     // Save using Mongoose save() - handles Map correctly
     await gameState.save();
@@ -270,16 +128,9 @@ export async function POST(request: NextRequest) {
 
     await broadcastGameState();
 
-    // Get the final result for this team (after score calculation)
-    const finalResult = currentQuestionResults.find((r: Round3AnswerResult) => r.teamId === teamId);
-
     return NextResponse.json({
       success: true,
-      isCorrect,
-      score: finalResult?.score || 0,
-      submissionOrder: finalResult?.submissionOrder || 0,
-      pendingAnswersCount: updatedState?.round3State?.pendingAnswers?.length || 0,
-      judgedAnswersCount: currentQuestionResults.length,
+      pendingAnswersCount: gameState.round3State.pendingAnswers?.length || 0,
     });
   } catch (error: any) {
     console.error("Error submitting answer:", error);

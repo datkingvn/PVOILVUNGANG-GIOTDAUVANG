@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import type { PendingAnswer, Round3AnswerResult } from "@/types/game";
 import { sortAnswersByTimestamp } from "@/lib/utils/round3-engine";
@@ -17,47 +18,75 @@ interface JudgingPanelProps {
   };
 }
 
-export function JudgingPanel({
+function JudgingPanelInner({
   pendingAnswers,
   questionResults,
   teams,
-  onJudge, // Keep for backward compatibility but not used
-  question, // Keep for backward compatibility but not used
+  onJudge,
+  question,
 }: JudgingPanelProps) {
-  // Sort pending answers by timestamp
-  const sortedPending = sortAnswersByTimestamp(pendingAnswers);
+  const [judgingTeamId, setJudgingTeamId] = useState<string | null>(null);
+  const sortedPending = useMemo(
+    () => sortAnswersByTimestamp(pendingAnswers),
+    [pendingAnswers]
+  );
 
-  // Get team names
+  const sortedResults = useMemo(
+    () => [...questionResults].sort((a, b) => a.submittedAt - b.submittedAt),
+    [questionResults]
+  );
+
   const getTeamName = (teamId: string) => {
     return teams.find((t) => t.teamId === teamId)?.nameSnapshot || teamId;
   };
 
-  // Format timestamp
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
     return `${String(date.getHours()).padStart(2, "0")}:${String(
       date.getMinutes()
-    ).padStart(2, "0")}:${String(date.getSeconds()).padStart(2, "0")}.${String(
-      date.getMilliseconds()
-    ).padStart(3, "0")}`;
+    ).padStart(2, "0")}:${String(date.getSeconds()).padStart(
+      2,
+      "0"
+    )}.${String(date.getMilliseconds()).padStart(3, "0")}`;
   };
 
-  // Calculate submission order display (1st, 2nd, 3rd, 4th)
   const getOrderLabel = (order: number) => {
     if (order === 0) return "";
     const labels = ["", "1st", "2nd", "3rd", "4th"];
     return labels[order] || `${order}th`;
   };
 
-  // Sort questionResults by submission time for display
-  const sortedResults = [...questionResults].sort((a, b) => a.submittedAt - b.submittedAt);
+  const handleJudge = async (teamId: string, isCorrect: boolean) => {
+    setJudgingTeamId(teamId);
+    try {
+      await onJudge(teamId, isCorrect);
+    } finally {
+      setJudgingTeamId(null);
+    }
+  };
 
   return (
     <div className="space-y-4">
-      {/* Auto-judged Results */}
+      {/* Display correct answer */}
+      {question &&
+        (question.answerText ||
+          ((question.acceptedAnswers?.length ?? 0) > 0)) && (
+        <Card className="bg-blue-900/30 border-blue-600/50">
+          <h3 className="text-lg font-bold mb-2 text-blue-300">Đáp án đúng:</h3>
+          <div className="text-white font-medium">
+            {question.answerText}
+            {question.acceptedAnswers && question.acceptedAnswers.length > 0 && (
+              <div className="mt-2 text-sm text-gray-300">
+                Hoặc: {question.acceptedAnswers.join(", ")}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
       {sortedResults.length > 0 && (
         <Card>
-          <h3 className="text-xl font-bold mb-4">Kết quả chấm tự động</h3>
+          <h3 className="text-xl font-bold mb-4">Kết quả đã chấm</h3>
           <div className="space-y-3">
             {sortedResults.map((result) => {
               const teamName = getTeamName(result.teamId);
@@ -79,10 +108,14 @@ export function JudgingPanel({
                         {result.isCorrect && result.submissionOrder > 0 && (
                           <div className="flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-yellow-500 to-amber-600 rounded-lg">
                             <Trophy className="w-4 h-4 text-white" />
-                            <span className="font-bold text-white">{orderLabel}</span>
+                            <span className="font-bold text-white">
+                              {orderLabel}
+                            </span>
                           </div>
                         )}
-                        <div className="font-semibold text-white">{teamName}</div>
+                        <div className="font-semibold text-white">
+                          {teamName}
+                        </div>
                         <div className="flex items-center gap-1 text-gray-400 text-sm">
                           <Clock className="w-4 h-4" />
                           {timeStr}
@@ -90,18 +123,26 @@ export function JudgingPanel({
                         {result.isCorrect ? (
                           <div className="flex items-center gap-1 px-2 py-1 bg-green-500/20 rounded">
                             <CheckCircle2 className="w-4 h-4 text-green-400" />
-                            <span className="text-green-400 font-semibold text-sm">Đúng</span>
+                            <span className="text-green-400 font-semibold text-sm">
+                              Đúng
+                            </span>
                           </div>
                         ) : (
                           <div className="flex items-center gap-1 px-2 py-1 bg-red-500/20 rounded">
                             <XCircle className="w-4 h-4 text-red-400" />
-                            <span className="text-red-400 font-semibold text-sm">Sai</span>
+                            <span className="text-red-400 font-semibold text-sm">
+                              Sai
+                            </span>
                           </div>
                         )}
                       </div>
                       <div className="ml-11">
-                        <div className="text-gray-400 text-xs mb-1">Đáp án:</div>
-                        <div className="text-gray-300 font-medium">{result.answer || "N/A"}</div>
+                        <div className="text-gray-400 text-xs mb-1">
+                          Đáp án:
+                        </div>
+                        <div className="text-gray-300 font-medium">
+                          {result.answer || "N/A"}
+                        </div>
                       </div>
                     </div>
                     <div className="text-right">
@@ -111,7 +152,9 @@ export function JudgingPanel({
                         </div>
                       )}
                       {!result.isCorrect && (
-                        <div className="text-lg font-semibold text-gray-400">0 điểm</div>
+                        <div className="text-lg font-semibold text-gray-400">
+                          0 điểm
+                        </div>
                       )}
                     </div>
                   </div>
@@ -122,14 +165,14 @@ export function JudgingPanel({
         </Card>
       )}
 
-      {/* Pending Answers (if any teams haven't submitted yet) */}
       {pendingAnswers.length > 0 && (
         <Card>
-          <h3 className="text-xl font-bold mb-4">Đang chờ submit</h3>
+          <h3 className="text-xl font-bold mb-4">Đang chờ chấm</h3>
           <div className="space-y-3">
             {sortedPending.map((answer, index) => {
               const teamName = getTeamName(answer.teamId);
               const timeStr = formatTime(answer.submittedAt);
+              const isJudging = judgingTeamId === answer.teamId;
 
               return (
                 <div
@@ -142,15 +185,36 @@ export function JudgingPanel({
                         <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center font-bold text-white">
                           {index + 1}
                         </div>
-                        <div className="font-semibold text-white">{teamName}</div>
+                        <div className="font-semibold text-white">
+                          {teamName}
+                        </div>
                         <div className="flex items-center gap-1 text-gray-400 text-sm">
                           <Clock className="w-4 h-4" />
                           {timeStr}
                         </div>
                       </div>
-                      <div className="ml-11 text-gray-300">{answer.answer}</div>
+                      <div className="ml-11 text-gray-300">
+                        {answer.answer}
+                      </div>
                     </div>
-                    <div className="text-gray-400 text-sm">Đang chờ...</div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleJudge(answer.teamId, true)}
+                        disabled={isJudging}
+                        className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-semibold text-white flex items-center gap-2 transition-colors"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        Đúng
+                      </button>
+                      <button
+                        onClick={() => handleJudge(answer.teamId, false)}
+                        disabled={isJudging}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-semibold text-white flex items-center gap-2 transition-colors"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        Sai
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -169,4 +233,6 @@ export function JudgingPanel({
     </div>
   );
 }
+
+export const JudgingPanel = React.memo(JudgingPanelInner);
 

@@ -54,7 +54,7 @@ export function Round2StageLayout({
             boxShadow: `0 0 30px ${round2Colors.cyanGlow}, inset 0 0 20px ${round2Colors.navyDark}`,
           }}
         >
-          {/* Main grid container: 2 rows × 2 cols */}
+          {/* Main grid container: 2 rows × 2 cols (without Live View) */}
           <div
             className="w-full h-full grid"
             style={{
@@ -95,31 +95,57 @@ export function Round2StageLayout({
               }}
             >
               <div
-                className="text-center p-8 rounded-lg border-2"
+                className="text-center p-8 rounded-lg border-2 flex flex-col items-center"
                 style={{
                   background: round2Gradients.navyBackground,
                   borderColor: round2Colors.cyanBorder,
                   boxShadow: `0 0 40px ${round2Colors.cyanGlow}`,
-                  maxWidth: "80%",
+                  maxWidth: "90%",
+                  maxHeight: "90%",
                 }}
               >
-                <h2
-                  className="text-4xl font-bold mb-4"
-                  style={{
-                    color: round2Colors.cyanBright,
-                    textShadow: `0 0 20px ${round2Colors.cyanGlow}`,
-                  }}
-                >
-                  HOÀN THÀNH PHẦN THI THỨ 2
-                </h2>
-                <p
-                  className="text-3xl font-semibold"
-                  style={{
-                    color: round2Colors.textWhite,
-                  }}
-                >
-                  <span style={{ color: round2Colors.cyanBright }}>{winnerTeam.nameSnapshot}</span> đoán đúng từ khóa
-                </p>
+                {/* Full Answer Image */}
+                {round2Meta?.image?.originalUrl && (
+                  <div
+                    className="mb-6 w-full flex items-center justify-center"
+                    style={{
+                      maxWidth: "600px",
+                      maxHeight: "400px",
+                      animation: "fadeIn 0.5s ease-in",
+                    }}
+                  >
+                    <img
+                      src={round2Meta.image.originalUrl}
+                      alt="Đáp án CNV"
+                      className="w-full h-full object-contain rounded-lg"
+                      style={{
+                        border: `2px solid ${round2Colors.cyanBorder}40`,
+                        boxShadow: `0 0 20px ${round2Colors.cyanGlow}`,
+                      }}
+                    />
+                  </div>
+                )}
+                
+                {/* Text Message */}
+                <div>
+                  <h2
+                    className="text-4xl font-bold mb-4"
+                    style={{
+                      color: round2Colors.cyanBright,
+                      textShadow: `0 0 20px ${round2Colors.cyanGlow}`,
+                    }}
+                  >
+                    HOÀN THÀNH PHẦN THI THỨ 2
+                  </h2>
+                  <p
+                    className="text-3xl font-semibold"
+                    style={{
+                      color: round2Colors.textWhite,
+                    }}
+                  >
+                    <span style={{ color: round2Colors.cyanBright }}>{winnerTeam.nameSnapshot}</span> đoán đúng từ khóa
+                  </p>
+                </div>
               </div>
             </div>
           )}

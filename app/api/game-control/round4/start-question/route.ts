@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/db/connection";
 import GameState from "@/lib/db/models/GameState";
 import { requireMC } from "@/lib/auth/middleware";
-import { broadcastGameState } from "@/lib/pusher/server";
+import { broadcastGameState } from "@/lib/socket/server";
 import { getRound4QuestionDuration } from "@/lib/utils/round4-engine";
 
 export async function POST(request: NextRequest) {
@@ -61,6 +61,9 @@ export async function POST(request: NextRequest) {
     const now = Date.now();
 
     r4.currentQuestionIndex = questionIndex;
+    // Reset video sync timestamp for the new question (will be set when entering R4_QUESTION_SHOW)
+    r4.videoStartedAt = undefined;
+    gameState.markModified("round4State.videoStartedAt");
     gameState.currentQuestionId = qRef.questionId;
     // Không bắt đầu timer ngay, chờ đội xác nhận ngôi sao
     gameState.questionTimer = undefined;

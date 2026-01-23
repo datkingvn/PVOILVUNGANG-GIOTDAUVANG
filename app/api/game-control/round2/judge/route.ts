@@ -4,7 +4,7 @@ import GameState from "@/lib/db/models/GameState";
 import Package from "@/lib/db/models/Package";
 import Question from "@/lib/db/models/Question";
 import { requireMC } from "@/lib/auth/middleware";
-import { broadcastGameState } from "@/lib/pusher/server";
+import { broadcastGameState } from "@/lib/socket/server";
 import {
   calculateCNVScore,
   suggestAnswerMatch,
@@ -12,11 +12,6 @@ import {
   checkRound2Complete,
 } from "@/lib/utils/round2-engine";
 import type { PendingAnswer, TeamScore, PackageHistory, Round2Mapping } from "@/types/game";
-
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-export const runtime = "nodejs";
-export const preferredRegion = "sin1";
 
 export async function POST(request: NextRequest) {
   try {
@@ -378,37 +373,23 @@ export async function POST(request: NextRequest) {
     await pkg.save();
     await gameState.save();
     
-    const stateObj = gameState.toObject({ flattenMaps: true });
-    const timing = await broadcastGameState(stateObj);
+    await broadcastGameState();
 
-    return NextResponse.json(
-      {
-        success: true,
-        suggestion: isHorizontal && gameState.currentQuestionId && pendingAnswer
-          ? suggestAnswerMatch(
-              pendingAnswer.answer,
-              (await Question.findById(gameState.currentQuestionId))?.answerText || "",
-              (await Question.findById(gameState.currentQuestionId))?.acceptedAnswers
-            )
-          : undefined,
-        timing,
-      },
-      {
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
-    );
+    return NextResponse.json({
+      success: true,
+      suggestion: isHorizontal && gameState.currentQuestionId && pendingAnswer
+        ? suggestAnswerMatch(
+            pendingAnswer.answer,
+            (await Question.findById(gameState.currentQuestionId))?.answerText || "",
+            (await Question.findById(gameState.currentQuestionId))?.acceptedAnswers
+          )
+        : undefined,
+    });
   } catch (error: any) {
     console.error("Error judging answer:", error);
     return NextResponse.json(
       { error: error.message || "Lỗi chấm đáp án" },
-      { 
-        status: 500,
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
+      { status: 500 }
     );
   }
 }

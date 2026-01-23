@@ -133,6 +133,8 @@ const Round4StateSchema = new Schema(
     turnIndex: { type: Number, required: true, default: 0 },
     currentTeamId: { type: String },
     completedTeamIds: { type: [String], default: [] },
+    // Server epoch ms when the Round 4 question video starts showing (for cross-client sync)
+    videoStartedAt: { type: Number },
     selectedPackage: { type: Number },
     questionPattern: [{ type: Number }],
     currentQuestionIndex: { type: Number },

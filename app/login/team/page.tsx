@@ -54,16 +54,21 @@ export default function TeamLoginPage() {
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-4"
-      style={{
-        backgroundImage: "url('/system/bg-link.png')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-      }}
-    >
-      <div className="bg-gradient-to-br from-gray-800/90 to-gray-900/90 border border-gray-700 rounded-lg p-8 w-full max-w-md shadow-xl">
+    <div className="min-h-screen flex items-center justify-center p-4 relative">
+      {/* Blurred background */}
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage: "url('/system/CHXD.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          filter: "blur(8px)",
+          transform: "scale(1.1)",
+        }}
+      />
+      <div className="absolute inset-0 bg-black/20" />
+      <div className="relative z-10 bg-gradient-to-br from-gray-800/90 to-gray-900/90 border border-gray-700 rounded-lg p-8 w-full max-w-md shadow-xl">
         <div className="text-center mb-6">
           <Users size={48} className="mx-auto mb-4 text-green-500" />
           <h1 className="text-2xl font-bold text-white">Đăng nhập đội chơi</h1>

@@ -8,13 +8,61 @@ import { Card } from "@/components/ui/card";
 import { Scoreboard } from "@/components/game/Scoreboard";
 import { Timer } from "@/components/game/Timer";
 import { getRound4TeamOrder } from "@/lib/utils/round4-engine";
+import { useGameStore as useGameStoreHook } from "@/store/gameStore";
 import type { GameState, Round4State } from "@/types/game";
+
+// Lightweight countdown component for the 5s steal window to keep re-renders isolated
+function StealCountdown({
+  endsAt,
+  active,
+  onComplete,
+}: {
+  endsAt?: number;
+  active: boolean;
+  onComplete?: () => void;
+}) {
+  const serverTimeOffset = useGameStoreHook((s) => s.serverTimeOffset);
+  const [seconds, setSeconds] = useState<number>(() => {
+    if (!endsAt || !active) return 0;
+    const now = Date.now() + serverTimeOffset;
+    return Math.max(0, Math.ceil((endsAt - now) / 1000));
+  });
+
+  useEffect(() => {
+    if (!endsAt || !active) {
+      setSeconds(0);
+      return;
+    }
+
+    const update = () => {
+      const now = Date.now() + serverTimeOffset;
+      const remaining = Math.max(0, Math.ceil((endsAt - now) / 1000));
+      setSeconds((prev) => {
+        if (prev !== 0 && remaining === 0 && onComplete) {
+          onComplete();
+        }
+        return remaining;
+      });
+    };
+
+    update();
+    const id = setInterval(update, 200);
+    return () => clearInterval(id);
+  }, [endsAt, active, serverTimeOffset, onComplete]);
+
+  return (
+    <div className="text-3xl font-extrabold text-amber-300 tabular-nums">
+      {seconds}s
+    </div>
+  );
+}
 
 export default function Round4ManagementPage() {
   const router = useRouter();
   const state = useGameStore((s) => s.state);
   const serverTimeOffset = useGameStore((state) => state.serverTimeOffset);
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const currentTime = Date.now() + (serverTimeOffset || 0);
+  const [stealWindowExpired, setStealWindowExpired] = useState(false);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
   const [selectingTeamId, setSelectingTeamId] = useState<string | null>(null);
@@ -30,11 +78,6 @@ export default function Round4ManagementPage() {
 
   useHydrateGameState();
   usePusherGameState();
-
-  useEffect(() => {
-    const interval = setInterval(() => setCurrentTime(Date.now() + serverTimeOffset), 200);
-    return () => clearInterval(interval);
-  }, [serverTimeOffset]);
 
   useEffect(() => {
     if (!state || state.round !== "ROUND4" || !state.round4State) {
@@ -98,19 +141,17 @@ export default function Round4ManagementPage() {
   }, [r4]);
 
   // Hiển thị steal window khi phase là R4_STEAL_WINDOW và có stealWindow
-  const isStealWindowPhase = state?.phase === "R4_STEAL_WINDOW" && !!r4?.stealWindow;
-  
-  // Tính toán countdown trực tiếp để đảm bảo cập nhật mỗi khi currentTime thay đổi
-  const stealCountdown =
-    isStealWindowPhase && r4?.stealWindow?.endsAt
-      ? Math.max(0, Math.ceil((r4.stealWindow.endsAt - currentTime) / 1000))
-      : 0;
-  
-  // Kiểm tra xem steal window còn active không (chưa hết thời gian và chưa có đội lock)
-  const isStealWindowActive = isStealWindowPhase && 
-                               r4?.stealWindow?.active && 
-                               stealCountdown > 0 &&
-                               !r4?.stealWindow?.buzzLockedTeamId;
+  const isStealWindowPhase =
+    state?.phase === "R4_STEAL_WINDOW" && !!r4?.stealWindow;
+
+  useEffect(() => {
+    if (!isStealWindowPhase) {
+      setStealWindowExpired(false);
+    } else {
+      // reset khi mở steal window mới
+      setStealWindowExpired(false);
+    }
+  }, [isStealWindowPhase, r4?.stealWindow?.endsAt]);
 
   const currentTeam = useMemo(
     () => (state && r4 ? state.teams.find((t) => t.teamId === r4.currentTeamId) : undefined),
@@ -452,7 +493,7 @@ export default function Round4ManagementPage() {
                   </div>
                 </div>
               </div>
-              {state.questionTimer && (
+          {state.questionTimer && (
                 <div className="flex flex-col items-end gap-1">
                   <Timer timer={state.questionTimer} size="md" />
                   <div className="text-xs text-gray-400">
@@ -597,11 +638,14 @@ export default function Round4ManagementPage() {
                     Các đội còn lại bấm chuông để cướp điểm.
                   </div>
                 </div>
-                <div className="text-3xl font-extrabold text-amber-300 tabular-nums">
-                  {stealCountdown}s
-                </div>
+                <StealCountdown
+                  endsAt={r4.stealWindow.endsAt}
+                  active={r4.stealWindow.active}
+                  onComplete={() => setStealWindowExpired(true)}
+                />
               </div>
-              {!isStealWindowActive && !r4.stealWindow.buzzLockedTeamId && (
+              {stealWindowExpired &&
+                !r4.stealWindow.buzzLockedTeamId && (
                 <div className="flex items-center justify-between pt-2 border-t border-amber-500/40">
                   <div className="text-sm text-amber-100/90">
                     Hết thời gian giành quyền, không có đội nào bấm chuông.

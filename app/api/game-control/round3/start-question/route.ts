@@ -4,7 +4,7 @@ import GameState from "@/lib/db/models/GameState";
 import Package from "@/lib/db/models/Package";
 import Question from "@/lib/db/models/Question";
 import { requireMC } from "@/lib/auth/middleware";
-import { broadcastGameState } from "@/lib/pusher/server";
+import { broadcastGameState } from "@/lib/socket/server";
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,6 +41,53 @@ export async function POST(request: NextRequest) {
         { error: "Không phải Round 3" },
         { status: 400 }
       );
+    }
+
+    // Enforce sequential-only flow for Round 3
+    if (
+      gameState.phase === "ROUND3_QUESTION_ACTIVE" ||
+      gameState.phase === "ROUND3_JUDGING"
+    ) {
+      return NextResponse.json(
+        { error: "Đang thi câu hỏi, không thể bắt đầu câu mới" },
+        { status: 400 }
+      );
+    }
+
+    if (gameState.phase === "ROUND3_END") {
+      return NextResponse.json(
+        { error: "Round 3 đã kết thúc" },
+        { status: 400 }
+      );
+    }
+
+    const currentIdx = gameState.round3State?.currentQuestionIndex;
+    if (gameState.phase === "ROUND3_READY") {
+      if (questionIndex !== 0) {
+        return NextResponse.json(
+          { error: "Vòng 3 phải thi theo thứ tự, vui lòng bắt đầu từ Câu 1" },
+          { status: 400 }
+        );
+      }
+    } else if (gameState.phase === "ROUND3_RESULTS") {
+      const expectedNext =
+        typeof currentIdx === "number" ? currentIdx + 1 : 0;
+
+      if (expectedNext > 3) {
+        return NextResponse.json(
+          { error: "Đã hết câu hỏi Round 3" },
+          { status: 400 }
+        );
+      }
+
+      if (questionIndex !== expectedNext) {
+        return NextResponse.json(
+          {
+            error: `Vòng 3 phải thi theo thứ tự, vui lòng bắt đầu từ Câu ${expectedNext + 1}`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Verify package exists and is Round3

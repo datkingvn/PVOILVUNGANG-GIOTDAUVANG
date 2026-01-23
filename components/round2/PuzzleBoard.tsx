@@ -1,16 +1,18 @@
 "use client";
 
-import type { Round2Image } from "@/types/game";
+import type { Round2Image, Phase } from "@/types/game";
 import { round2Colors, round2Typography, round2Gradients, round2Spacing, round2Effects } from "./round2Styles";
 
 interface PuzzleBoardProps {
   image?: Round2Image;
   revealedPieces?: { [pieceIndex: number]: boolean } | Map<string, boolean>;
+  phase?: Phase;
 }
 
 export function PuzzleBoard({
   image,
   revealedPieces = {},
+  phase,
 }: PuzzleBoardProps) {
   const pieces = image?.pieces || [];
   
@@ -32,18 +34,48 @@ export function PuzzleBoard({
     return pieces.find((p) => p.index === index)?.url;
   };
 
+  // Chỉ hiển thị full image ở phase FINAL_PIECE_REVEAL (sau khi đoán CNV xong),
+  // còn phase REVEAL_PIECE chỉ dùng để mở dần từng mảnh theo hàng ngang
+  const showFullImage = phase === "FINAL_PIECE_REVEAL" && image?.originalUrl;
+
+  // Tính aspect ratio theo ảnh gốc để khung puzzle luôn giữ đúng tỉ lệ
+  const aspectRatio =
+    image && image.dimensions
+      ? image.dimensions.width / image.dimensions.height
+      : 16 / 9;
+
   return (
-    <div 
-      className="relative w-full h-full"
+    <div
+      className="relative w-full"
       style={{
         background: round2Gradients.navyBackground,
         border: `${round2Spacing.borderWidth} solid ${round2Colors.cyanBorder}40`,
+        aspectRatio,
       }}
     >
-      {/* Grid container for 4 corner pieces */}
-      {/* Layout: 1 | 2
-                  4 | 3 */}
-      <div className="grid grid-cols-2 grid-rows-2 w-full h-full">
+      {/* Full image overlay when phase is REVEAL_PIECE */}
+      {showFullImage && (
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center"
+          style={{
+            background: round2Gradients.navyBackground,
+            animation: "fadeIn 0.5s ease-in",
+          }}
+        >
+          <img
+            src={image.originalUrl}
+            alt="Full puzzle image"
+            className="w-full h-full object-contain"
+            style={{
+              maxWidth: "100%",
+              maxHeight: "100%",
+            }}
+          />
+        </div>
+      )}
+
+      {/* Puzzle pieces grid - hidden when showing full image */}
+      <div className={`grid grid-cols-2 grid-rows-2 w-full h-full ${showFullImage ? "opacity-0" : ""}`}>
         {/* Piece 1: Top-left */}
         <div className="relative border-r border-b border-cyan-500/20">
           {isRevealed(1) && getPieceUrl(1) ? (
@@ -162,19 +194,21 @@ export function PuzzleBoard({
       </div>
 
       {/* Central rectangle to cover the intersection of pieces */}
-      <div
-        className="absolute"
-        style={{
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: "40%",
-          height: "40%",
-          background: round2Gradients.navyPiece,
-          border: `${round2Spacing.borderWidth} solid ${round2Colors.cyanBorder}40`,
-          zIndex: 10,
-        }}
-      />
+      {!showFullImage && (
+        <div
+          className="absolute"
+          style={{
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: "40%",
+            height: "40%",
+            background: round2Gradients.navyPiece,
+            border: `${round2Spacing.borderWidth} solid ${round2Colors.cyanBorder}40`,
+            zIndex: 10,
+          }}
+        />
+      )}
     </div>
   );
 }

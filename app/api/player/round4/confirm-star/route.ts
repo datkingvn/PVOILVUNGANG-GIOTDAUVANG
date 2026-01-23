@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/db/connection";
 import GameState from "@/lib/db/models/GameState";
+import Question from "@/lib/db/models/Question";
 import { requireTeam } from "@/lib/auth/middleware";
-import { broadcastGameState } from "@/lib/pusher/server";
+import { broadcastGameState } from "@/lib/socket/server";
 import { getRound4QuestionDuration } from "@/lib/utils/round4-engine";
 
 export async function POST(request: NextRequest) {
@@ -162,22 +163,47 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Sau khi xác nhận, chuyển sang phase hiển thị câu hỏi và bắt đầu timer
+      // Sau khi xác nhận, chuyển sang phase hiển thị câu hỏi
+      // Timer sẽ được start sau khi video kết thúc (nếu có video)
       const qRef = r4.questions[r4.currentQuestionIndex];
-      const duration = getRound4QuestionDuration(qRef.points);
-      const now = Date.now();
+      
+      // Fetch question data để check xem có video không
+      const question = await Question.findById(qRef.questionId);
+      const hasVideo = question && question.videoUrl;
+      
+      // Set server timestamp for video sync when entering R4_QUESTION_SHOW
+      if (hasVideo) {
+        r4.videoStartedAt = Date.now();
+      } else {
+        r4.videoStartedAt = undefined;
+      }
+      gameState.markModified("round4State.videoStartedAt");
 
-      gameState.questionTimer = {
-        endsAt: now + duration,
-        running: true,
-      };
+      if (!hasVideo) {
+        // Nếu không có video, start timer ngay
+        const duration = getRound4QuestionDuration(qRef.points);
+        const now = Date.now();
+        gameState.questionTimer = {
+          endsAt: now + duration,
+          running: true,
+        };
+        console.log("[Round4 Star] No video, timer started immediately:", {
+          questionPoints: qRef.points,
+          duration,
+          timerEndsAt: gameState.questionTimer.endsAt,
+        });
+      } else {
+        // Có video, timer sẽ start sau khi video kết thúc
+        gameState.questionTimer = undefined;
+        console.log("[Round4 Star] Has video, timer will start after video ends");
+      }
+      
       gameState.phase = "R4_QUESTION_SHOW";
 
       console.log("[Round4 Star] Phase changed to R4_QUESTION_SHOW:", {
         questionPoints: qRef.points,
-        duration,
-        timerEndsAt: gameState.questionTimer.endsAt,
         useStar,
+        hasVideo,
       });
     } else if (gameState.phase === "R4_QUESTION_SHOW") {
       // Đã xác nhận và câu hỏi đang hiển thị -> coi như thành công, không báo lỗi

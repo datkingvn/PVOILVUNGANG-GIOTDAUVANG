@@ -3,7 +3,7 @@ import connectDB from "@/lib/db/connection";
 import GameState from "@/lib/db/models/GameState";
 import Package from "@/lib/db/models/Package";
 import { requireMC } from "@/lib/auth/middleware";
-import { broadcastGameState } from "@/lib/pusher/server";
+import { broadcastGameState } from "@/lib/socket/server";
 import { calculateRound3Score } from "@/lib/utils/round3-engine";
 import type { Round3AnswerResult, TeamScore } from "@/types/game";
 
@@ -70,10 +70,17 @@ export async function POST(request: NextRequest) {
         );
 
         if (correctResults.length > 0) {
-          // Sort by submission time
-          const sortedCorrectResults = [...correctResults].sort(
-            (a, b) => a.submittedAt - b.submittedAt
-          );
+          // Sort by submission time (earliest first)
+          // If submittedAt is the same, sort by judgedAt (earliest judged first) as tiebreaker
+          // This ensures consistent ordering when teams submit at the same time
+          const sortedCorrectResults = [...correctResults].sort((a, b) => {
+            // Primary sort: by submission time (earliest first)
+            if (a.submittedAt !== b.submittedAt) {
+              return a.submittedAt - b.submittedAt;
+            }
+            // Secondary sort: by judgedAt (earliest judged first) if submittedAt is the same
+            return a.judgedAt - b.judgedAt;
+          });
 
           // Calculate and assign scores
           sortedCorrectResults.forEach((result, index) => {

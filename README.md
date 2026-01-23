@@ -1,6 +1,6 @@
 # Đường lên đỉnh Olympia - Game Show System
 
-Hệ thống game show real-time đa thiết bị với Next.js, MongoDB, Pusher Channels.
+Hệ thống game show real-time đa thiết bị với Next.js, MongoDB, Socket.IO (tối ưu cho LAN, không phụ thuộc Pusher cloud).
 
 ## Cài đặt
 
@@ -10,14 +10,9 @@ npm install
 ```
 
 2. Tạo file `.env.local` từ `env.example` và điền các biến môi trường:
-```
+```env
 MONGODB_URI=mongodb://localhost:27017/olympia
-PUSHER_APP_ID=your_pusher_app_id
-PUSHER_KEY=your_pusher_key
-PUSHER_SECRET=your_pusher_secret
-PUSHER_CLUSTER=ap1
-NEXT_PUBLIC_PUSHER_KEY=your_pusher_key
-NEXT_PUBLIC_PUSHER_CLUSTER=ap1
+PORT=3000
 JWT_SECRET=your_jwt_secret_key_change_in_production
 MC_DEFAULT_USERNAME=admin
 MC_DEFAULT_PASSWORD=admin123
@@ -33,6 +28,8 @@ npm run seed
 npm run dev
 ```
 
+Server sẽ lắng nghe trên `localhost` và toàn bộ IP trong mạng LAN (xem log khi start server).
+
 ## Cấu trúc
 
 - `/` - Landing page với 3 lựa chọn: MC, Đội chơi, Khách
@@ -45,26 +42,25 @@ npm run dev
 
 ## Features
 
-- Real-time sync với Pusher Channels
+- Real-time sync qua Socket.IO (phù hợp thi trong LAN)
 - MC control panel với sidebar
 - Round 1 game logic với auto-timeout
 - Beautiful UI với dark theme và animations
-- Multi-game support
+- Multi-device support (MC, stage, player, guest)
 
 ## Tech Stack
 
 - Next.js 14 (App Router)
 - TypeScript
 - MongoDB + Mongoose
-- Pusher Channels
+- Socket.IO
 - Zustand (state management)
 - Framer Motion (animations)
 - Tailwind CSS
 
 ## Notes
 
-- GameState được lưu trong MongoDB (single source of truth)
-- Mọi thay đổi state được broadcast qua Pusher channel `game-{gameId}` với event `state:update`
+- `GameState` được lưu trong MongoDB (single source of truth)
+- Mọi thay đổi state được broadcast realtime tới các client qua Socket.IO với event `state:update`
 - Auto-finalize timeout questions khi timer hết (reconcile on read/interaction)
 - MC có thể tạo nhiều games và chọn active game
-

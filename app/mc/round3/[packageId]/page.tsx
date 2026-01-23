@@ -18,24 +18,17 @@ export default function Round3ManagementPage() {
   const packageId = params?.packageId as string;
   const state = useGameStore((state) => state.state);
   const serverTimeOffset = useGameStore((state) => state.serverTimeOffset);
+  const currentTime = Date.now() + (serverTimeOffset || 0);
 
   const [packageData, setPackageData] = useState<any>(null);
   const [questions, setQuestions] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState<any>(null);
   const [judgingTeamId, setJudgingTeamId] = useState<string | null>(null);
-  const [currentTime, setCurrentTime] = useState(Date.now());
 
   useHydrateGameState();
   usePusherGameState();
 
-  // Update current time for timer display - use server time offset
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(Date.now() + serverTimeOffset);
-    }, 100);
-    return () => clearInterval(interval);
-  }, [serverTimeOffset]);
 
   useEffect(() => {
     async function checkAuth() {
@@ -197,6 +190,29 @@ export default function Round3ManagementPage() {
     }
   };
 
+  const handleNextQuestion = async () => {
+    if (currentQuestionIndex >= 3) return;
+
+    try {
+      const nextQuestionIndex = currentQuestionIndex + 1;
+      const res = await fetch("/api/game-control/round3/start-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          packageId,
+          questionIndex: nextQuestionIndex,
+        }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.error || "Lỗi chuyển sang câu tiếp");
+      }
+    } catch (error) {
+      console.error("Error starting next question:", error);
+      alert("Lỗi chuyển sang câu tiếp");
+    }
+  };
+
   const isQuestionActive = (index: number) => {
     return (
       state?.phase === "ROUND3_QUESTION_ACTIVE" &&
@@ -241,6 +257,24 @@ export default function Round3ManagementPage() {
     return (hasResults || wasPreviouslyActive || isInResultsPhase) && isNotCurrent;
   };
 
+  const getNextStartableQuestionIndex = (): number | null => {
+    if (!state) return null;
+
+    // Enforce sequential flow for Round 3:
+    // - At READY: only question 0 can start
+    // - At RESULTS: only (currentQuestionIndex + 1) can start
+    if (state.phase === "ROUND3_READY") return 0;
+
+    if (state.phase === "ROUND3_RESULTS") {
+      const currentIdx = state.round3State?.currentQuestionIndex;
+      if (typeof currentIdx !== "number") return 0;
+      const next = currentIdx + 1;
+      return next >= 0 && next <= 3 ? next : null;
+    }
+
+    return null;
+  };
+
   if (!state || state.round !== "ROUND3") {
     return (
       <div className="min-h-screen flex items-center justify-center text-white">
@@ -270,11 +304,19 @@ export default function Round3ManagementPage() {
               {questions.map((question, index) => {
                 const isActive = isQuestionActive(index);
                 const isCompleted = isQuestionCompleted(index);
+                const nextStartableIndex = getNextStartableQuestionIndex();
                 const canStart =
                   (state.phase === "ROUND3_READY" ||
                   state.phase === "ROUND3_RESULTS") &&
+                  nextStartableIndex === index &&
                   !isCompleted &&
                   !isActive;
+                const isLockedByOrder =
+                  (state.phase === "ROUND3_READY" || state.phase === "ROUND3_RESULTS") &&
+                  !isCompleted &&
+                  !isActive &&
+                  nextStartableIndex !== null &&
+                  nextStartableIndex !== index;
 
                 return (
                   <div
@@ -313,14 +355,18 @@ export default function Round3ManagementPage() {
                         Bắt đầu
                       </button>
                     )}
+                    {isLockedByOrder && (
+                      <button
+                        disabled
+                        className="w-full px-4 py-2 bg-gray-700/60 rounded-lg font-semibold text-gray-300 flex items-center justify-center gap-2 cursor-not-allowed"
+                        title="Vòng 3 phải thi theo thứ tự"
+                      >
+                        Thi theo thứ tự
+                      </button>
+                    )}
                     {isActive && (
                       <div className="space-y-1">
-                        {state.questionTimer && state.questionTimer.running && (
-                          <div className="text-xs text-gray-400">
-                            Còn {Math.max(0, Math.ceil((state.questionTimer.endsAt - currentTime) / 1000))} giây
-                          </div>
-                        )}
-                        {state.questionTimer && (!state.questionTimer.running || currentTime > state.questionTimer.endsAt) && (
+                        {state.questionTimer && !state.questionTimer.running && (
                           <div className="text-xs text-red-400 font-semibold">
                             ⏱️ Đã hết thời gian
                           </div>
@@ -350,19 +396,13 @@ export default function Round3ManagementPage() {
                 <h2 className="text-2xl font-bold">
                   Câu {currentQuestionIndex + 1}
                 </h2>
-                {state.questionTimer && (
+                {state.questionTimer && state.questionTimer.running && (
                   <div className="flex flex-col items-end gap-2">
                     <Timer timer={state.questionTimer} size="md" />
-  
-                    {!state.questionTimer.running && Date.now() > state.questionTimer.endsAt && (
-                      <div className="text-sm text-red-400 font-semibold">
-                        Đã hết thời gian
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
-              <QuestionDisplay question={currentQuestion} />
+              <QuestionDisplay question={currentQuestion} muted />
             </Card>
           )}
 
@@ -378,10 +418,44 @@ export default function Round3ManagementPage() {
             />
           )}
 
+          {state.phase === "ROUND3_RESULTS" &&
+            questionResults.length > 0 && (
+              <Card>
+                <div className="p-4 bg-gradient-to-r from-cyan-900/30 to-blue-900/30 rounded-lg border border-cyan-600/50">
+                  <h3 className="text-xl font-bold mb-4">
+                    Đã chấm xong tất cả các đội
+                  </h3>
+                  <p className="text-gray-300 mb-4">
+                    {currentQuestionIndex < 3
+                      ? "Bấm nút bên dưới để chuyển sang câu tiếp theo"
+                      : "Bấm nút bên dưới để kết thúc vòng thi"}
+                  </p>
+                  <div className="flex gap-3">
+                    {currentQuestionIndex < 3 ? (
+                      <button
+                        onClick={handleNextQuestion}
+                        className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-lg font-semibold text-white transition-all flex items-center justify-center gap-2"
+                      >
+                        <Play className="w-5 h-5" />
+                        Chuyển sang câu tiếp
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleEndRound3}
+                        className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-lg font-semibold text-white transition-all"
+                      >
+                        Kết thúc vòng thi này
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            )}
+
           {(state.phase === "ROUND3_RESULTS" || 
             (state.phase === "ROUND3_QUESTION_ACTIVE" && 
              state.questionTimer && 
-             (!state.questionTimer.running || currentTime > state.questionTimer.endsAt))) && (
+             !state.questionTimer.running)) && (
             <Card>
               <div className="p-4 bg-gradient-to-r from-green-900/30 to-emerald-900/30 rounded-lg border border-green-600/50">
                 <h3 className="text-xl font-bold mb-4">
@@ -391,7 +465,7 @@ export default function Round3ManagementPage() {
                 </h3>
                 {state.phase === "ROUND3_QUESTION_ACTIVE" && 
                  state.questionTimer && 
-                 (!state.questionTimer.running || currentTime > state.questionTimer.endsAt) && (
+                 !state.questionTimer.running && (
                   <p className="text-gray-300 mb-4">
                     {currentQuestionIndex < 3 
                       ? "Bấm nút bên dưới để chuyển sang câu tiếp"

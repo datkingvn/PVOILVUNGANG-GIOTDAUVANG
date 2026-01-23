@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/hooks/useToast";
-import { Plus, Edit, Trash2, X, Check } from "lucide-react";
+import { Plus, Edit, Trash2, X, Check, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Round } from "@/types/game";
 
@@ -55,6 +55,7 @@ export function RoundQuestionsModal({
   });
   const [newAcceptedAnswer, setNewAcceptedAnswer] = useState("");
   const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -202,6 +203,58 @@ export function RoundQuestionsModal({
     }
   }
 
+  // Helper function to upload video with progress tracking
+  async function uploadVideoWithProgress(
+    questionId: string,
+    videoFile: File
+  ): Promise<{ success: boolean; error?: string }> {
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append("video", videoFile);
+
+      // Track upload progress
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = Math.round((e.loaded / e.total) * 100);
+          setUploadProgress(percentComplete);
+        }
+      });
+
+      // Handle completion
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve({ success: true });
+          } catch {
+            resolve({ success: true });
+          }
+        } else {
+          try {
+            const error = JSON.parse(xhr.responseText);
+            resolve({ success: false, error: error.error || "Lỗi upload video" });
+          } catch {
+            resolve({ success: false, error: "Lỗi upload video" });
+          }
+        }
+      });
+
+      // Handle errors
+      xhr.addEventListener("error", () => {
+        resolve({ success: false, error: "Lỗi kết nối khi upload video" });
+      });
+
+      xhr.addEventListener("abort", () => {
+        resolve({ success: false, error: "Upload bị hủy" });
+      });
+
+      // Start upload
+      xhr.open("POST", `/api/questions/${questionId}/upload-video`);
+      xhr.send(formData);
+    });
+  }
+
   async function handleCreateQuestion() {
     if (!questionForm.text.trim()) {
       showToast("Vui lòng nhập nội dung câu hỏi", "error");
@@ -263,26 +316,23 @@ export function RoundQuestionsModal({
 
       const questionId = data._id || data.id;
 
-      // Upload video if needed
-      if (round === "ROUND3" && questionForm.type === "video" && questionForm.videoFile) {
+      // Upload video if needed (Round 3 or Round 4)
+      if (
+        ((round === "ROUND3" && questionForm.type === "video") || round === "ROUND4") &&
+        questionForm.videoFile
+      ) {
         setUploadingVideo(true);
+        setUploadProgress(0);
         try {
-          const formData = new FormData();
-          formData.append("video", questionForm.videoFile);
-
-          const videoRes = await fetch(`/api/questions/${questionId}/upload-video`, {
-            method: "POST",
-            body: formData,
-          });
-
-          if (!videoRes.ok) {
-            const videoError = await videoRes.json();
-            showToast(videoError.error || "Lỗi upload video", "error");
+          const result = await uploadVideoWithProgress(questionId, questionForm.videoFile);
+          if (!result.success) {
+            showToast(result.error || "Lỗi upload video", "error");
           }
         } catch (error) {
           showToast("Lỗi upload video", "error");
         } finally {
           setUploadingVideo(false);
+          setUploadProgress(0);
         }
       }
 
@@ -354,21 +404,17 @@ export function RoundQuestionsModal({
         return;
       }
 
-      // Upload video if needed (for Round 3 video questions)
-      if (round === "ROUND3" && questionForm.type === "video" && questionForm.videoFile) {
+      // Upload video if needed (for Round 3 video questions or Round 4)
+      if (
+        ((round === "ROUND3" && questionForm.type === "video") || round === "ROUND4") &&
+        questionForm.videoFile
+      ) {
         setUploadingVideo(true);
+        setUploadProgress(0);
         try {
-          const formData = new FormData();
-          formData.append("video", questionForm.videoFile);
-
-          const videoRes = await fetch(`/api/questions/${editingQuestion._id}/upload-video`, {
-            method: "POST",
-            body: formData,
-          });
-
-          if (!videoRes.ok) {
-            const videoError = await videoRes.json();
-            showToast(videoError.error || "Lỗi upload video", "error");
+          const result = await uploadVideoWithProgress(editingQuestion._id, questionForm.videoFile);
+          if (!result.success) {
+            showToast(result.error || "Lỗi upload video", "error");
           } else {
             showToast("Cập nhật câu hỏi và upload video thành công", "success");
           }
@@ -376,6 +422,7 @@ export function RoundQuestionsModal({
           showToast("Lỗi upload video", "error");
         } finally {
           setUploadingVideo(false);
+          setUploadProgress(0);
         }
       } else {
         showToast("Cập nhật câu hỏi thành công", "success");
@@ -625,6 +672,18 @@ export function RoundQuestionsModal({
                     {question.text}
                   </div>
                   {round === "ROUND3" && (question as any).type === "video" && (question as any).videoUrl && (
+                    <div className="mt-3">
+                      <video
+                        src={(question as any).videoUrl}
+                        controls
+                        className="w-full max-w-md rounded-lg border border-gray-700"
+                        style={{ maxHeight: "200px" }}
+                      >
+                        Trình duyệt không hỗ trợ video.
+                      </video>
+                    </div>
+                  )}
+                  {round === "ROUND4" && (question as any).videoUrl && (
                     <div className="mt-3">
                       <video
                         src={(question as any).videoUrl}
@@ -901,7 +960,26 @@ export function RoundQuestionsModal({
                     <label className="block text-white font-semibold mb-2 text-sm">
                       Video
                     </label>
-                    {(question as any).videoUrl && !questionForm.videoFile && (
+                    {uploadingVideo && (
+                      <div className="mb-3 p-3 bg-gradient-to-br from-purple-900/30 to-pink-900/30 border border-purple-500/50 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Loader2 className="w-4 h-4 text-purple-300 animate-spin" />
+                          <span className="text-purple-300 text-sm font-semibold flex-1">
+                            Đang upload video...
+                          </span>
+                          <span className="text-purple-300 font-bold text-sm">
+                            {uploadProgress}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                          <div
+                            className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-300 ease-out"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {(question as any).videoUrl && !questionForm.videoFile && !uploadingVideo && (
                       <div className="mb-3">
                         <div className="text-sm text-gray-400 mb-2">Video hiện tại:</div>
                         <video
@@ -923,9 +1001,10 @@ export function RoundQuestionsModal({
                           setQuestionForm({ ...questionForm, videoFile: file });
                         }
                       }}
-                      className="w-full px-4 py-2 bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-500"
+                      disabled={uploadingVideo}
+                      className="w-full px-4 py-2 bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     />
-                    {questionForm.videoFile && (
+                    {questionForm.videoFile && !uploadingVideo && (
                       <div className="mt-2 text-sm text-purple-300 flex items-center gap-2">
                         <span>✓</span>
                         <span>Đã chọn: {questionForm.videoFile.name}</span>
@@ -934,9 +1013,75 @@ export function RoundQuestionsModal({
                         </span>
                       </div>
                     )}
-                    {!questionForm.videoFile && !(question as any).videoUrl && (
+                    {!questionForm.videoFile && !(question as any).videoUrl && !uploadingVideo && (
                       <div className="mt-2 text-sm text-gray-400">
                         Vui lòng chọn file video để upload
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {round === "ROUND4" && (
+                  <div>
+                    <label className="block text-white font-semibold mb-2 text-sm">
+                      🎥 Upload video (tùy chọn)
+                    </label>
+                    {uploadingVideo && (
+                      <div className="mb-3 p-3 bg-gradient-to-br from-purple-900/30 to-pink-900/30 border border-purple-500/50 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Loader2 className="w-4 h-4 text-purple-300 animate-spin" />
+                          <span className="text-purple-300 text-sm font-semibold flex-1">
+                            Đang upload video...
+                          </span>
+                          <span className="text-purple-300 font-bold text-sm">
+                            {uploadProgress}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                          <div
+                            className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-300 ease-out"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {(question as any).videoUrl && !questionForm.videoFile && !uploadingVideo && (
+                      <div className="mb-3">
+                        <div className="text-sm text-gray-400 mb-2">Video hiện tại:</div>
+                        <video
+                          src={(question as any).videoUrl}
+                          controls
+                          className="w-full max-w-md rounded-lg border border-gray-700"
+                          style={{ maxHeight: "200px" }}
+                        >
+                          Trình duyệt không hỗ trợ video.
+                        </video>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setQuestionForm({ ...questionForm, videoFile: file });
+                        }
+                      }}
+                      disabled={uploadingVideo}
+                      className="w-full px-4 py-2 bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                    {questionForm.videoFile && !uploadingVideo && (
+                      <div className="mt-2 text-sm text-purple-300 flex items-center gap-2">
+                        <span>✓</span>
+                        <span>Đã chọn: {questionForm.videoFile.name}</span>
+                        <span className="text-gray-400">
+                          ({(questionForm.videoFile.size / 1024 / 1024).toFixed(2)} MB)
+                        </span>
+                      </div>
+                    )}
+                    {!questionForm.videoFile && !(question as any).videoUrl && !uploadingVideo && (
+                      <div className="mt-2 text-sm text-gray-400">
+                        Chọn file video để upload (tùy chọn)
                       </div>
                     )}
                   </div>
@@ -1344,6 +1489,85 @@ export function RoundQuestionsModal({
             </div>
           )}
 
+          {round === "ROUND4" && (
+            <div>
+              <label className="block text-white font-semibold mb-2">
+                🎥 Upload video (tùy chọn)
+              </label>
+              {uploadingVideo && (
+                <div className="mb-3 p-4 bg-gradient-to-br from-purple-900/30 to-pink-900/30 border border-purple-500/50 rounded-lg">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Loader2 className="w-5 h-5 text-purple-300 animate-spin" />
+                    <div className="flex-1">
+                      <div className="text-purple-300 font-semibold text-sm">
+                        Đang upload video...
+                      </div>
+                      <div className="text-gray-400 text-xs mt-1">
+                        Vui lòng đợi, video đang được xử lý và tải lên
+                      </div>
+                    </div>
+                    <div className="text-purple-300 font-bold text-lg">
+                      {uploadProgress}%
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-purple-500 to-pink-500 h-2.5 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              {editingQuestion && (editingQuestion as any).videoUrl && !questionForm.videoFile && !uploadingVideo && (
+                <div className="mb-3">
+                  <div className="text-sm text-gray-400 mb-2">Video hiện tại:</div>
+                  <video
+                    src={(editingQuestion as any).videoUrl}
+                    controls
+                    className="w-full max-w-md rounded-lg border border-gray-700"
+                    style={{ maxHeight: "200px" }}
+                  >
+                    Trình duyệt không hỗ trợ video.
+                  </video>
+                </div>
+              )}
+              <input
+                type="file"
+                accept="video/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setQuestionForm({ ...questionForm, videoFile: file });
+                  }
+                }}
+                disabled={uploadingVideo}
+                className="w-full px-4 py-3 bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              {questionForm.videoFile && !uploadingVideo && (
+                <div className="mt-3 p-3 bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-500/30 rounded-lg">
+                  <div className="flex items-center gap-2 text-purple-300 text-sm font-medium mb-2">
+                    <span>✓</span>
+                    <span>Đã chọn file:</span>
+                  </div>
+                  <div className="text-white text-sm">{questionForm.videoFile.name}</div>
+                  <div className="text-gray-400 text-xs mt-1">
+                    Kích thước: {(questionForm.videoFile.size / 1024 / 1024).toFixed(2)} MB
+                  </div>
+                  {questionForm.videoFile.type && (
+                    <div className="text-gray-400 text-xs">
+                      Định dạng: {questionForm.videoFile.type}
+                    </div>
+                  )}
+                </div>
+              )}
+              {!questionForm.videoFile && !(editingQuestion && (editingQuestion as any).videoUrl) && !uploadingVideo && (
+                <div className="mt-2 text-sm text-gray-400 italic">
+                  Chọn file video để upload (tùy chọn)
+                </div>
+              )}
+            </div>
+          )}
+
           {round === "ROUND3" && (
             <div>
               <label className="block text-white font-semibold mb-3">Loại câu hỏi</label>
@@ -1525,6 +1749,30 @@ export function RoundQuestionsModal({
               <label className="block text-white font-semibold mb-2">
                 🎥 Upload video
               </label>
+              {uploadingVideo && (
+                <div className="mb-3 p-4 bg-gradient-to-br from-purple-900/30 to-pink-900/30 border border-purple-500/50 rounded-lg">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Loader2 className="w-5 h-5 text-purple-300 animate-spin" />
+                    <div className="flex-1">
+                      <div className="text-purple-300 font-semibold text-sm">
+                        Đang upload video...
+                      </div>
+                      <div className="text-gray-400 text-xs mt-1">
+                        Vui lòng đợi, video đang được xử lý và tải lên
+                      </div>
+                    </div>
+                    <div className="text-purple-300 font-bold text-lg">
+                      {uploadProgress}%
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-purple-500 to-pink-500 h-2.5 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
               <div className="relative">
                 <input
                   type="file"
@@ -1535,10 +1783,11 @@ export function RoundQuestionsModal({
                       setQuestionForm({ ...questionForm, videoFile: file });
                     }
                   }}
-                  className="w-full px-4 py-3 bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-500 cursor-pointer"
+                  disabled={uploadingVideo}
+                  className="w-full px-4 py-3 bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
-              {questionForm.videoFile && (
+              {questionForm.videoFile && !uploadingVideo && (
                 <div className="mt-3 p-3 bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-500/30 rounded-lg">
                   <div className="flex items-center gap-2 text-purple-300 text-sm font-medium mb-2">
                     <span>✓</span>
@@ -1555,9 +1804,9 @@ export function RoundQuestionsModal({
                   )}
                 </div>
               )}
-              {!questionForm.videoFile && (
+              {!questionForm.videoFile && !uploadingVideo && (
                 <div className="mt-2 text-sm text-gray-400 italic">
-                  Chọn file video để upload lên Cloudflare R2
+                  Chọn file video để upload
                 </div>
               )}
             </div>
@@ -1592,13 +1841,18 @@ export function RoundQuestionsModal({
           <button
             onClick={editingQuestion ? handleUpdateQuestion : handleCreateQuestion}
             disabled={uploadingVideo}
-            className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {uploadingVideo 
-              ? "Đang upload video..." 
-              : editingQuestion 
-                ? "Cập nhật câu hỏi" 
-                : "Tạo câu hỏi"}
+            {uploadingVideo ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Đang upload video...</span>
+              </>
+            ) : editingQuestion ? (
+              "Cập nhật câu hỏi"
+            ) : (
+              "Tạo câu hỏi"
+            )}
           </button>
         </div>
       </Modal>

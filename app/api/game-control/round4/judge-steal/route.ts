@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/db/connection";
 import GameState from "@/lib/db/models/GameState";
 import { requireMC } from "@/lib/auth/middleware";
-import { broadcastGameState } from "@/lib/pusher/server";
+import { broadcastGameState } from "@/lib/socket/server";
 import { advanceRound4QuestionOrTeam } from "@/lib/utils/round4-engine";
 import type { TeamScore } from "@/types/game";
 

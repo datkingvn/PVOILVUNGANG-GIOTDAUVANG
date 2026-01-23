@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Timer } from "@/components/game/Timer";
 import type { GameState, Round4State } from "@/types/game";
 
@@ -8,6 +9,8 @@ interface Round4StageLayoutProps {
 }
 
 export function Round4StageLayout({ state }: Round4StageLayoutProps) {
+  const [question, setQuestion] = useState<any>(null);
+
   if (state.round !== "ROUND4" || !state.round4State) {
     return null;
   }
@@ -18,6 +21,18 @@ export function Round4StageLayout({ state }: Round4StageLayoutProps) {
     r4.currentQuestionIndex !== undefined && r4.questions
       ? r4.questions[r4.currentQuestionIndex]
       : undefined;
+
+  // Fetch question data when currentQuestionId changes
+  useEffect(() => {
+    if (state?.currentQuestionId) {
+      fetch(`/api/questions/${state.currentQuestionId}`)
+        .then((res) => res.json())
+        .then(setQuestion)
+        .catch(console.error);
+    } else {
+      setQuestion(null);
+    }
+  }, [state?.currentQuestionId]);
 
   const hasStarOnCurrent = (() => {
     if (!r4.starUsages || !r4.currentTeamId) return false;
@@ -77,6 +92,43 @@ export function Round4StageLayout({ state }: Round4StageLayoutProps) {
             <div className="text-sm text-amber-100 text-center">
               Các đội còn lại bấm chuông để giành quyền trả lời và cướp điểm.
             </div>
+          </div>
+        ) : question ? (
+          <div className="w-full max-w-4xl">
+            {question.videoUrl ? (
+              <div className="space-y-4">
+                <div className="text-lg font-semibold text-white text-center mb-4">
+                  {question.text}
+                </div>
+                <div className="w-full">
+                  <video
+                    src={question.videoUrl}
+                    autoPlay
+                    muted
+                    className="w-full max-w-4xl mx-auto rounded-lg shadow-lg"
+                    style={{ pointerEvents: 'none' }}
+                    onEnded={async () => {
+                      // Start timer after video ends
+                      if (state.round === "ROUND4" && state.phase === "R4_QUESTION_SHOW") {
+                        try {
+                          await fetch("/api/game-control/round4/start-timer", {
+                            method: "POST",
+                          });
+                        } catch (error) {
+                          console.error("Error starting timer after video:", error);
+                        }
+                      }
+                    }}
+                  >
+                    Trình duyệt của bạn không hỗ trợ video.
+                  </video>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center text-white text-xl">
+                {question.text}
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-center text-gray-300 text-xl">

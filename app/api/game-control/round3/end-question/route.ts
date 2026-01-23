@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/db/connection";
 import GameState from "@/lib/db/models/GameState";
 import { requireMC } from "@/lib/auth/middleware";
-import { broadcastGameState } from "@/lib/pusher/server";
+import { broadcastGameState } from "@/lib/socket/server";
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (gameState.phase !== "ROUND3_QUESTION_ACTIVE") {
+    if (gameState.phase !== "ROUND3_QUESTION_ACTIVE" && gameState.phase !== "ROUND3_JUDGING") {
       return NextResponse.json(
         { error: "Không thể kết thúc câu hỏi ở phase này" },
         { status: 400 }
@@ -35,6 +35,9 @@ export async function POST(request: NextRequest) {
     if (gameState.questionTimer) {
       gameState.questionTimer.running = false;
     }
+
+    // Scores are already calculated and added to teams when MC judges answers
+    // No need to recalculate here - just move to results phase
 
     // Move to results phase
     gameState.phase = "ROUND3_RESULTS";

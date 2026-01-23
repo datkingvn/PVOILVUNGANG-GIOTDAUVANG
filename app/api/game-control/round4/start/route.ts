@@ -3,14 +3,9 @@ import connectDB from "@/lib/db/connection";
 import GameState from "@/lib/db/models/GameState";
 import Team from "@/lib/db/models/Team";
 import { requireMC } from "@/lib/auth/middleware";
-import { broadcastGameState } from "@/lib/pusher/server";
+import { broadcastGameState } from "@/lib/socket/server";
 import type { TeamScore } from "@/types/game";
 import { initRound4State } from "@/lib/utils/round4-engine";
-
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-export const runtime = "nodejs";
-export const preferredRegion = "sin1";
 
 export async function POST() {
   try {
@@ -63,47 +58,13 @@ export async function POST() {
     const inited = await initRound4State();
     await GameState.updateOne({ _id: gameState._id }, inited);
 
-    // Reload gameState to get updated round4State
-    const updatedGameState = await GameState.findById(gameState._id);
-    if (updatedGameState) {
-      const stateObj = updatedGameState.toObject({ flattenMaps: true });
-      const timing = await broadcastGameState(stateObj);
+    await broadcastGameState();
 
-      return NextResponse.json(
-        { 
-          success: true,
-          timing,
-        },
-        {
-          headers: {
-            "Cache-Control": "no-store",
-          },
-        }
-      );
-    }
-
-    const timing = await broadcastGameState();
-
-    return NextResponse.json(
-      { 
-        success: true,
-        timing,
-      },
-      {
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
-    );
+    return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "Lỗi khởi tạo Round 4" },
-      { 
-        status: 500,
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
+      { status: 500 }
     );
   }
 }

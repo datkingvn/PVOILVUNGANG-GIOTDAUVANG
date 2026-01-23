@@ -6,22 +6,21 @@ import type { PendingAnswer } from "@/types/game";
 
 /**
  * Calculate Round 3 score based on submission order
- * 1st correct answer: 40 points
- * 2nd correct answer: 30 points
- * 3rd correct answer: 20 points
- * 4th correct answer: 10 points
- * 5th and beyond: 0 points
+ * 1st correct answer: 30 points
+ * 2nd correct answer: 20 points
+ * 3rd correct answer: 10 points
+ * 4th and beyond: 0 points
  */
 export function calculateRound3Score(submissionOrder: number): number {
   switch (submissionOrder) {
     case 1:
-      return 40;
-    case 2:
       return 30;
-    case 3:
+    case 2:
       return 20;
-    case 4:
+    case 3:
       return 10;
+    case 4:
+      return 0;
     default:
       return 0;
   }

@@ -47,7 +47,7 @@ async function seed() {
 
     // Create MC user
     const username = process.env.MC_DEFAULT_USERNAME || "admin";
-    const password = process.env.MC_DEFAULT_PASSWORD || "admin123";
+    const password = process.env.MC_DEFAULT_PASSWORD || "123456";
 
     const existingUser = await User.findOne({ username });
     if (!existingUser) {
@@ -64,11 +64,17 @@ async function seed() {
 
     // Create 4 packages for ROUND1
     for (let i = 1; i <= 4; i++) {
-      const existingPackage = await Package.findOne({
-        round: "ROUND1",
-        number: i,
-      });
-      if (!existingPackage) {
+      try {
+        const existingPackage = await Package.findOne({
+          round: "ROUND1",
+          number: i,
+        });
+        
+        if (existingPackage) {
+          console.log(`ℹ️  Package ${i} (ROUND1) already exists, skipping...`);
+          continue;
+        }
+
         const pkg = await Package.create({
           number: i,
           round: "ROUND1",
@@ -88,9 +94,15 @@ async function seed() {
           });
         }
 
-        console.log(`✅ Created Package ${i} with 12 questions`);
-      } else {
-        console.log(`ℹ️  Package ${i} already exists`);
+        console.log(`✅ Created Package ${i} (ROUND1) with 12 questions`);
+      } catch (error: any) {
+        // Handle duplicate key error gracefully
+        if (error.code === 11000) {
+          console.log(`ℹ️  Package ${i} (ROUND1) already exists (duplicate key), skipping...`);
+        } else {
+          console.error(`❌ Error creating Package ${i}:`, error.message);
+          throw error;
+        }
       }
     }
 

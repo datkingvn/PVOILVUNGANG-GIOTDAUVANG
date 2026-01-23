@@ -14,7 +14,7 @@ import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Modal } from "@/components/ui/modal";
 import { suggestAnswerMatch } from "@/lib/utils/round2-engine";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, Users, Grid3x3, XCircle, CheckCircle2, Clock, Trophy, AlertCircle, Play, ArrowRight } from "lucide-react";
+import { Bell, Users, Grid3x3, XCircle, CheckCircle2, Clock, Trophy, AlertCircle, Play, ArrowRight, RotateCcw } from "lucide-react";
 
 type Round = "ROUND1" | "ROUND2" | "ROUND3" | "ROUND4";
 
@@ -74,7 +74,7 @@ export default function MCDashboardPage() {
   }, [router]);
 
   useEffect(() => {
-    fetch("/api/teams", { cache: "no-store" })
+    fetch("/api/teams")
       .then((res) => res.json())
       .then(setTeams)
       .catch(console.error);
@@ -84,7 +84,7 @@ export default function MCDashboardPage() {
     const roundToFetch = selectedRound || (state?.round as Round | null);
     if (roundToFetch) {
       setIsLoadingPackages(true);
-      fetch(`/api/packages?round=${roundToFetch}`, { cache: "no-store" })
+      fetch(`/api/packages?round=${roundToFetch}`)
         .then((res) => res.json())
         .then((data) => {
           setPackages(data);
@@ -105,7 +105,7 @@ export default function MCDashboardPage() {
     const roundToFetch = selectedRound || (state?.round as Round | null);
     // When phase becomes IDLE and activePackageId is cleared, it means a package just completed
     if (roundToFetch && state?.phase === "IDLE" && !state?.activePackageId && !state?.currentQuestionId) {
-      fetch(`/api/packages?round=${roundToFetch}`, { cache: "no-store" })
+      fetch(`/api/packages?round=${roundToFetch}`)
         .then((res) => res.json())
         .then((data) => {
           setPackages(data);
@@ -116,7 +116,7 @@ export default function MCDashboardPage() {
 
   useEffect(() => {
     if (state?.currentQuestionId) {
-      fetch(`/api/questions/${state.currentQuestionId}`, { cache: "no-store" })
+      fetch(`/api/questions/${state.currentQuestionId}`)
         .then((res) => res.json())
         .then(setQuestion)
         .catch(console.error);
@@ -127,7 +127,7 @@ export default function MCDashboardPage() {
   useEffect(() => {
     if (state?.activePackageId && state?.round === "ROUND2") {
       const fetchPackageData = () => {
-        fetch(`/api/packages/${state.activePackageId}`, { cache: "no-store" })
+        fetch(`/api/packages/${state.activePackageId}`)
           .then((res) => res.json())
           .then((data) => {
             setPackageData(data);
@@ -135,7 +135,7 @@ export default function MCDashboardPage() {
           .catch(console.error);
         
         // Fetch horizontal questions to check which ones are answered
-        fetch(`/api/questions/public?packageId=${state.activePackageId}&round=ROUND2`, { cache: "no-store" })
+        fetch(`/api/questions/public?packageId=${state.activePackageId}&round=ROUND2`)
           .then((res) => res.json())
           .then((questions) => {
             if (Array.isArray(questions)) {
@@ -156,7 +156,7 @@ export default function MCDashboardPage() {
     } else if (state?.activePackageId && state?.round === "ROUND1") {
       // Fetch package data for Round 1 to track history changes
       const fetchPackageData = () => {
-        fetch(`/api/packages/${state.activePackageId}`, { cache: "no-store" })
+        fetch(`/api/packages/${state.activePackageId}`)
           .then((res) => res.json())
           .then((data) => {
             setPackageData(data);
@@ -502,7 +502,7 @@ export default function MCDashboardPage() {
           setSelectedPackageId("");
           setQuestion(null);
           if (selectedRound) {
-            fetch(`/api/packages?round=${selectedRound}`, { cache: "no-store" })
+            fetch(`/api/packages?round=${selectedRound}`)
               .then((res) => res.json())
               .then(setPackages)
               .catch(console.error);
@@ -510,6 +510,36 @@ export default function MCDashboardPage() {
         }
       } catch (error) {
         console.error("Reset game failed:", error);
+      }
+    });
+  }
+
+  async function resetRound(round: Round) {
+    const roundLabel = ROUNDS.find(r => r.value === round)?.label || round;
+    confirm(`Bạn có chắc chắn muốn reset ${roundLabel}? Tất cả trạng thái và gói câu hỏi của vòng này sẽ được đặt lại về ban đầu.`, async () => {
+      try {
+        const res = await fetch(`/api/game-control/reset-round?round=${round}`, { method: "POST" });
+        if (res.ok) {
+          // Refresh packages if currently viewing this round
+          if (selectedRound === round || state?.round === round) {
+            fetch(`/api/packages?round=${round}`)
+              .then((res) => res.json())
+              .then(setPackages)
+              .catch(console.error);
+          }
+          // Clear selections if resetting current round
+          if (state?.round === round) {
+            setSelectedTeamId("");
+            setSelectedPackageId("");
+            setQuestion(null);
+          }
+        } else {
+          const error = await res.json();
+          alert(error.error || "Lỗi khi reset vòng");
+        }
+      } catch (error) {
+        console.error("Reset round failed:", error);
+        alert("Lỗi khi reset vòng");
       }
     });
   }
@@ -611,16 +641,30 @@ export default function MCDashboardPage() {
               <h2 className="text-xl font-bold mb-4">Chọn vòng thi</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {ROUNDS.map((round, index) => (
-                  <motion.button
-                    key={round.value}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: index * 0.1, duration: 0.2 }}
-                    onClick={() => startRound(round.value)}
-                    className="px-6 py-4 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 rounded-xl font-bold text-lg text-white transition-all shadow-lg hover:shadow-xl transform hover:scale-105"
-                  >
-                    {round.label}
-                  </motion.button>
+                  <div key={round.value} className="relative">
+                    <motion.button
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.1, duration: 0.2 }}
+                      onClick={() => startRound(round.value)}
+                      className="w-full px-6 py-4 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 rounded-xl font-bold text-lg text-white transition-all shadow-lg hover:shadow-xl transform hover:scale-105"
+                    >
+                      {round.label}
+                    </motion.button>
+                    <motion.button
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.1 + 0.2, duration: 0.2 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        resetRound(round.value);
+                      }}
+                      className="absolute top-2 right-2 p-1.5 bg-red-600/80 hover:bg-red-600 rounded-lg text-white transition-all shadow-md hover:shadow-lg hover:scale-110"
+                      title={`Reset ${round.label}`}
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </motion.button>
+                  </div>
                 ))}
               </div>
             </Card>
@@ -1085,7 +1129,7 @@ export default function MCDashboardPage() {
                 )}
 
                 {/* Selected Team and Horizontal Selection */}
-                {currentTeamId && (
+                {currentTeamId && (state?.phase === "TURN_SELECT" || state?.phase === "HORIZONTAL_SELECTED") && state?.activePackageId && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -1123,8 +1167,8 @@ export default function MCDashboardPage() {
                           const teamUsedAttempt = currentTeamId && teamsUsedAttempt[currentTeamId];
                           const currentHorizontalOrder = state?.round2State?.currentHorizontalOrder;
                           const isSelected = state?.phase === "HORIZONTAL_SELECTED" && currentHorizontalOrder === order;
-                          // Disable if attempted, team used attempt, or another horizontal is selected
-                          const isDisabled = isAttempted || teamUsedAttempt || (state?.phase === "HORIZONTAL_SELECTED" && !isSelected);
+                          // Disable if attempted, team used attempt, phase is HORIZONTAL_ACTIVE (already started), or phase is not TURN_SELECT/HORIZONTAL_SELECTED
+                          const isDisabled = isAttempted || teamUsedAttempt || state?.phase === "HORIZONTAL_ACTIVE" || (state?.phase !== "TURN_SELECT" && state?.phase !== "HORIZONTAL_SELECTED") || !state?.activePackageId;
                           
                           return (
                             <motion.button
@@ -1141,10 +1185,10 @@ export default function MCDashboardPage() {
                                   ? "bg-gradient-to-r from-orange-600 to-red-600 text-white cursor-not-allowed"
                                   : teamUsedAttempt
                                   ? "bg-gradient-to-r from-gray-700 to-gray-800 text-gray-400 cursor-not-allowed"
+                                  : state?.phase === "HORIZONTAL_ACTIVE"
+                                  ? "bg-gradient-to-r from-gray-700 to-gray-800 text-gray-400 cursor-not-allowed"
                                   : isSelected
                                   ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white ring-2 ring-cyan-400 ring-offset-2 ring-offset-gray-800"
-                                  : state?.phase === "HORIZONTAL_SELECTED"
-                                  ? "bg-gradient-to-r from-gray-700 to-gray-800 text-gray-400 cursor-not-allowed"
                                   : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white hover:scale-105 transform"
                               }`}
                               title={
@@ -1154,10 +1198,10 @@ export default function MCDashboardPage() {
                                   ? "Hàng ngang này đã được thi (không có đáp án đúng)" 
                                   : teamUsedAttempt 
                                   ? "Đội này đã sử dụng lượt chọn hàng ngang" 
+                                  : state?.phase === "HORIZONTAL_ACTIVE"
+                                  ? "Câu hỏi đã bắt đầu, không thể thay đổi"
                                   : isSelected
-                                  ? "Hàng ngang đã được chọn - Bấm 'Bắt đầu' để hiển thị câu hỏi"
-                                  : state?.phase === "HORIZONTAL_SELECTED"
-                                  ? "Đã chọn hàng ngang khác"
+                                  ? "Hàng ngang đã được chọn - Bấm 'Bắt đầu' để hiển thị câu hỏi hoặc chọn hàng khác"
                                   : ""
                               }
                             >
@@ -1357,6 +1401,30 @@ export default function MCDashboardPage() {
                 {isJudging ? "Đang xử lý..." : "✗ SAI"}
               </button>
             </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Question Display for Round 2 */}
+      {state?.currentQuestionId && 
+       state?.round === "ROUND2" && 
+       (state?.phase === "HORIZONTAL_ACTIVE" || state?.phase === "HORIZONTAL_JUDGING") && (
+        <div className="space-y-4 mb-6">
+          <Card>
+            <div className="mb-4 flex justify-end">
+              <Timer timer={state?.questionTimer} size="sm" />
+            </div>
+            {timerExpired && (
+              <p className="text-yellow-500 mb-4 text-center">
+                Thời gian đã hết
+              </p>
+            )}
+
+            <QuestionCard
+              questionText={question?.text || "Đang tải..."}
+              questionNumber={question?.index}
+              totalQuestions={4}
+            />
           </Card>
         </div>
       )}

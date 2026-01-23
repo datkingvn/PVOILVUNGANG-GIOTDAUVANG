@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/db/connection";
 import Question from "@/lib/db/models/Question";
 import { requireMC } from "@/lib/auth/middleware";
-import { uploadToR2, generateVideoKey } from "@/lib/storage/r2";
+import { uploadToLocal, generateVideoKey } from "@/lib/storage/local";
 
 export async function POST(
   request: NextRequest,
@@ -23,14 +23,15 @@ export async function POST(
       );
     }
 
-    if (question.round !== "ROUND3") {
+    if (question.round !== "ROUND3" && question.round !== "ROUND4") {
       return NextResponse.json(
-        { error: "Chỉ có thể upload video cho câu hỏi Round 3" },
+        { error: "Chỉ có thể upload video cho câu hỏi Round 3 và Round 4" },
         { status: 400 }
       );
     }
 
-    if (question.type !== "video") {
+    // Chỉ check type cho Round 3
+    if (question.round === "ROUND3" && question.type !== "video") {
       return NextResponse.json(
         { error: "Câu hỏi này không phải loại video" },
         { status: 400 }
@@ -56,13 +57,13 @@ export async function POST(
     const fileName = file.name;
     const extension = fileName.split(".").pop() || "mp4";
 
-    // Generate key and upload to R2
-    const key = generateVideoKey(questionId, extension);
+    // Generate key and upload to local storage
+    const key = generateVideoKey(questionId, extension, question.round as "ROUND3" | "ROUND4");
     
     // Detect content type
     const contentType = file.type || `video/${extension}`;
 
-    const uploadResult = await uploadToR2(buffer, key, contentType);
+    const uploadResult = await uploadToLocal(buffer, key, contentType);
 
     // Update question with video URL
     question.videoUrl = uploadResult.url;

@@ -40,7 +40,9 @@ export function AnswersResult({
   const previousQuestionIdRef = useRef<string | undefined>(undefined);
   const timeoutsRef = useRef<number[]>([]);
 
-  const shouldShow = phase === "REVEAL_PIECE" || phase === "TURN_SELECT";
+  // Only show when question has been started (currentQuestionId exists) or after judging (REVEAL_PIECE)
+  // Hide when MC just selected package (TURN_SELECT without currentQuestionId)
+  const shouldShow = phase === "REVEAL_PIECE" || (phase === "TURN_SELECT" && currentQuestionId);
 
   useEffect(() => {
     if (!rootRef.current) return;
@@ -95,7 +97,6 @@ export function AnswersResult({
 
     const qid = currentQuestionId || cachedQuestionIdRef.current;
     const allAnswers = initialAnswersRef.current;
-    if (!allAnswers.length) return [];
 
     const historyEntries = qid
       ? packageHistory
@@ -103,23 +104,28 @@ export function AnswersResult({
           .sort((a, b) => new Date(a.judgedAt).getTime() - new Date(b.judgedAt).getTime())
       : [];
 
-    const answers: TeamAnswer[] = allAnswers
-      .map((pa) => {
-        const t = teams.find((x) => x.teamId === pa.teamId);
-        if (!t) return null;
-        return {
-          teamId: pa.teamId,
-          teamName: t.nameSnapshot,
-          answer: pa.answer,
-          result: undefined as TeamAnswer["result"],
-        };
-      })
-      .filter(Boolean) as TeamAnswer[];
+    // Map from all teams, not just teams with answers
+    const answers: TeamAnswer[] = teams.map((team) => {
+      // Find answer for this team in allAnswers
+      const teamAnswer = allAnswers.find((pa) => pa.teamId === team.teamId);
+      return {
+        teamId: team.teamId,
+        teamName: team.nameSnapshot,
+        answer: teamAnswer?.answer || "", // Empty string if no answer
+        result: undefined as TeamAnswer["result"],
+      };
+    });
 
+    // Sort by team number (Đội 1, Đội 2, Đội 3) for consistent ordering
     answers.sort((a, b) => {
-      const aa = allAnswers.find((x) => x.teamId === a.teamId);
-      const bb = allAnswers.find((x) => x.teamId === b.teamId);
-      return (aa?.submittedAt || 0) - (bb?.submittedAt || 0);
+      // Extract number from team name (e.g., "Đội 1" -> 1, "Đội 2" -> 2)
+      const extractTeamNumber = (name: string): number => {
+        const match = name.match(/(\d+)/);
+        return match ? parseInt(match[1], 10) : 999;
+      };
+      const numA = extractTeamNumber(a.teamName);
+      const numB = extractTeamNumber(b.teamName);
+      return numA - numB;
     });
 
     const currentPendingIds = new Set(pendingAnswers.map((p) => p.teamId));
@@ -134,33 +140,67 @@ export function AnswersResult({
     return answers;
   }, [shouldShow, currentQuestionId, pendingAnswers, teams, packageHistory]);
 
+  // Track previous question ID to detect question changes
+  const previousQuestionIdForAnimationRef = useRef<string | undefined>(undefined);
+
   useEffect(() => {
-    timeoutsRef.current.forEach((t) => clearTimeout(t));
-    timeoutsRef.current = [];
-
-    if (!shouldShow || teamAnswers.length === 0) {
-      setVisibleItems(new Set());
-      return;
-    }
-
-    setVisibleItems(new Set());
-    const next = new Set<string>();
-    let delay = 0;
-
-    for (const item of teamAnswers) {
-      const id = window.setTimeout(() => {
-        next.add(item.teamId);
-        setVisibleItems(new Set(next));
-      }, delay);
-      timeoutsRef.current.push(id);
-      delay += 220;
-    }
-
-    return () => {
+    const currentQid = currentQuestionId || cachedQuestionIdRef.current;
+    const questionChanged = currentQid !== previousQuestionIdForAnimationRef.current;
+    
+    // Only reset animation when question changes or shouldShow changes
+    if (questionChanged || !shouldShow) {
+      previousQuestionIdForAnimationRef.current = currentQid;
+      
       timeoutsRef.current.forEach((t) => clearTimeout(t));
       timeoutsRef.current = [];
-    };
-  }, [shouldShow, teamAnswers]);
+
+      if (!shouldShow || teamAnswers.length === 0) {
+        setVisibleItems(new Set());
+        return;
+      }
+
+      // Reset and start animation from beginning for new question
+      setVisibleItems(new Set());
+      const next = new Set<string>();
+      let delay = 0;
+
+      for (const item of teamAnswers) {
+        const id = window.setTimeout(() => {
+          next.add(item.teamId);
+          setVisibleItems(new Set(next));
+        }, delay);
+        timeoutsRef.current.push(id);
+        delay += 220;
+      }
+
+      return () => {
+        timeoutsRef.current.forEach((t) => clearTimeout(t));
+        timeoutsRef.current = [];
+      };
+    }
+    // If question hasn't changed, just update visibleItems for existing teams
+    // This prevents flickering when only result status changes
+    else if (shouldShow && teamAnswers.length > 0) {
+      // Keep existing visible items, just ensure all current teamAnswers are visible
+      const currentTeamIds = new Set(teamAnswers.map(ta => ta.teamId));
+      setVisibleItems(prev => {
+        const updated = new Set(prev);
+        // Add any new teams that weren't visible before
+        currentTeamIds.forEach(id => {
+          if (!updated.has(id)) {
+            updated.add(id);
+          }
+        });
+        // Remove teams that are no longer in teamAnswers
+        prev.forEach(id => {
+          if (!currentTeamIds.has(id)) {
+            updated.delete(id);
+          }
+        });
+        return updated;
+      });
+    }
+  }, [shouldShow, teamAnswers, currentQuestionId]);
 
   const slots = useMemo(() => {
     const n = teamAnswers.length;
@@ -217,7 +257,7 @@ export function AnswersResult({
                   <span className="tagText">{s.teamName}</span>
                 </div>
 
-                <div className={`answer ${s.side}`}>{String(s.answer || "").trim() || "—"}</div>
+                <div className={`answer ${s.side}`}>{String(s.answer || "").trim()}</div>
 
                 {s.result && (
                   <div className={`resultPip ${s.result === "CORRECT" ? "pipOk" : "pipBad"}`} />
@@ -413,6 +453,69 @@ const styles = `
 .glowNeutral::before{ box-shadow: inset 0 0 0 calc(2px * var(--uiScale)) rgba(93, 235, 255, .20); }
 .glowCorrect::before{ box-shadow: inset 0 0 0 calc(2px * var(--uiScale)) rgba(93, 235, 255, .34), 0 0 calc(18px * var(--uiScale)) rgba(93,235,255,.18); }
 .glowWrong::before{ box-shadow: inset 0 0 0 calc(2px * var(--uiScale)) rgba(255, 85, 85, .28), 0 0 calc(18px * var(--uiScale)) rgba(255,85,85,.12); }
+
+/* Rotating border glow for correct answers */
+@keyframes rotateGlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.glowCorrect::after{
+  content:"";
+  position:absolute;
+  inset: calc(-4px * var(--uiScale));
+  background: conic-gradient(
+    from 0deg,
+    rgba(93, 235, 255, 0) 0deg,
+    rgba(93, 235, 255, 0.6) 60deg,
+    rgba(147, 255, 255, 1) 120deg,
+    rgba(93, 235, 255, 0.8) 180deg,
+    rgba(147, 255, 255, 1) 240deg,
+    rgba(93, 235, 255, 0.6) 300deg,
+    rgba(93, 235, 255, 0) 360deg
+  );
+  animation: rotateGlow 3s linear infinite;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Apply clip-path to match card shape */
+.glowCorrect.card.left::after{
+  clip-path: polygon(
+    0% 24%,
+    8% 0%,
+    100% 0%,
+    100% 78%,
+    92% 100%,
+    0% 100%
+  );
+}
+
+.glowCorrect.card.right::after{
+  clip-path: polygon(
+    0% 0%,
+    92% 0%,
+    100% 24%,
+    100% 100%,
+    8% 100%,
+    0% 78%
+  );
+}
+
+/* Create border effect using mask */
+.glowCorrect.card.left::after,
+.glowCorrect.card.right::after{
+  mask: 
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  padding: calc(4px * var(--uiScale));
+}
 
 /* Tag */
 .tag{

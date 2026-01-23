@@ -2,13 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/db/connection";
 import { requireMC } from "@/lib/auth/middleware";
 import { finalizeQuestion } from "@/lib/utils/game-engine";
-import { broadcastGameState } from "@/lib/pusher/server";
+import { broadcastGameState } from "@/lib/socket/server";
 import { getAuthCookie } from "@/lib/auth/cookie";
-
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-export const runtime = "nodejs";
-export const preferredRegion = "sin1";
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,28 +31,13 @@ export async function POST(request: NextRequest) {
     const judgedBy = authUser?.userId || "unknown";
 
     await finalizeQuestion(questionId, result, judgedBy);
-    const timing = await broadcastGameState();
+    await broadcastGameState();
 
-    return NextResponse.json(
-      { 
-        success: true,
-        timing,
-      },
-      {
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
-    );
+    return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "Lỗi server" },
-      { 
-        status: 500,
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
+      { status: 500 }
     );
   }
 }

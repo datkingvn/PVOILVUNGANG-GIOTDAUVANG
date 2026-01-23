@@ -45,7 +45,7 @@ export async function POST(
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Split image into 4 pieces and upload to R2
+    // Split image into 4 pieces and upload to local storage
     const splitResult = await splitImageInto4Pieces(buffer, packageId);
 
     // Update package with image data

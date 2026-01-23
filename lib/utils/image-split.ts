@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { uploadToR2, generateImageKey } from "@/lib/storage/r2";
+import { uploadToLocal, generateImageKey } from "@/lib/storage/local";
 
 export interface ImagePiece {
   index: 1 | 2 | 3 | 4;
@@ -133,13 +133,13 @@ export async function splitImageInto4Pieces(
 
   // Upload original image
   const originalKey = generateImageKey(packageId, "original.jpg");
-  const originalResult = await uploadToR2(imageBuffer, originalKey, "image/jpeg");
+  const originalResult = await uploadToLocal(imageBuffer, originalKey, "image/jpeg");
 
   // Upload all pieces
   const pieceUploads = await Promise.all(
     pieces.map(async (piece) => {
       const key = generateImageKey(packageId, `piece-${piece.index}.jpg`);
-      const result = await uploadToR2(piece.buffer, key, "image/jpeg");
+      const result = await uploadToLocal(piece.buffer, key, "image/jpeg");
       return {
         index: piece.index,
         url: result.url,

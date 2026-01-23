@@ -4,14 +4,9 @@ import GameState from "@/lib/db/models/GameState";
 import Package from "@/lib/db/models/Package";
 import Team from "@/lib/db/models/Team";
 import { requireMC } from "@/lib/auth/middleware";
-import { broadcastGameState } from "@/lib/pusher/server";
+import { broadcastGameState } from "@/lib/socket/server";
 import { getNextTeam } from "@/lib/utils/round2-engine";
 import type { TeamScore } from "@/types/game";
-
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-export const runtime = "nodejs";
-export const preferredRegion = "sin1";
 
 export async function POST(request: NextRequest) {
   try {
@@ -116,30 +111,14 @@ export async function POST(request: NextRequest) {
 
     await pkg.save();
     await gameState.save();
-    const stateObj = gameState.toObject({ flattenMaps: true });
-    const timing = await broadcastGameState(stateObj);
+    await broadcastGameState();
 
-    return NextResponse.json(
-      { 
-        success: true,
-        timing,
-      },
-      {
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
-    );
+    return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("Error starting Round 2:", error);
     return NextResponse.json(
       { error: error.message || "Lỗi start Round 2" },
-      { 
-        status: 500,
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
+      { status: 500 }
     );
   }
 }

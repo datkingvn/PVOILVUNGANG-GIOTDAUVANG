@@ -7,9 +7,10 @@ interface QuestionDisplayProps {
     videoUrl?: string;
     arrangeSteps?: Array<{ label: string; text: string }>;
   };
+  muted?: boolean;
 }
 
-export function QuestionDisplay({ question }: QuestionDisplayProps) {
+export function QuestionDisplay({ question, muted = false }: QuestionDisplayProps) {
   if (question.type === "video" && question.videoUrl) {
     return (
       <div className="space-y-4">
@@ -18,6 +19,7 @@ export function QuestionDisplay({ question }: QuestionDisplayProps) {
           <video
             src={question.videoUrl}
             controls
+            muted={muted}
             className="w-full max-w-4xl mx-auto rounded-lg shadow-lg"
           >
             Trình duyệt của bạn không hỗ trợ video.

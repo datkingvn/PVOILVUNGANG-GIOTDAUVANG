@@ -427,39 +427,40 @@ export default function StagePage() {
       round4SoundPlayedRef.current = false;
     }
 
+    // Disabled: Round 4 start sound
     // Play Round 4 sound when FIRST entering Round 4 (from a different round or from null)
-    if (currentRound === "ROUND4" && prevRound !== "ROUND4" && !round4SoundPlayedRef.current) {
-      if (soundRound4Ref.current) {
-        // Try to unlock audio first if not enabled
-        if (!audioEnabledRef.current && correctSoundRef.current) {
-          correctSoundRef.current.play()
-            .then(() => {
-              correctSoundRef.current?.pause();
-              if (correctSoundRef.current) {
-                correctSoundRef.current.currentTime = 0;
-              }
-              audioEnabledRef.current = true;
-            })
-            .catch(() => {
-              // Audio still not unlocked, continue anyway
-            });
-        }
+    // if (currentRound === "ROUND4" && prevRound !== "ROUND4" && !round4SoundPlayedRef.current) {
+    //   if (soundRound4Ref.current) {
+    //     // Try to unlock audio first if not enabled
+    //     if (!audioEnabledRef.current && correctSoundRef.current) {
+    //       correctSoundRef.current.play()
+    //         .then(() => {
+    //           correctSoundRef.current?.pause();
+    //           if (correctSoundRef.current) {
+    //             correctSoundRef.current.currentTime = 0;
+    //           }
+    //           audioEnabledRef.current = true;
+    //         })
+    //         .catch(() => {
+    //           // Audio still not unlocked, continue anyway
+    //         });
+    //     }
 
-        // Try to play Round 4 sound immediately (don't await to avoid blocking)
-        if (soundRound4Ref.current) {
-          soundRound4Ref.current.currentTime = 0;
-          soundRound4Ref.current.play().catch((error: any) => {
-            // If NotAllowedError, audio hasn't been unlocked by user interaction yet
-            // This is expected and OK - sound will play once user interacts
-            if (error.name !== "NotAllowedError") {
-              console.error("Failed to play sound-round-4 sound:", error);
-            }
-          });
-          // Mark as played after attempting to play
-          round4SoundPlayedRef.current = true;
-        }
-      }
-    }
+    //     // Try to play Round 4 sound immediately (don't await to avoid blocking)
+    //     if (soundRound4Ref.current) {
+    //       soundRound4Ref.current.currentTime = 0;
+    //       soundRound4Ref.current.play().catch((error: any) => {
+    //         // If NotAllowedError, audio hasn't been unlocked by user interaction yet
+    //         // This is expected and OK - sound will play once user interacts
+    //         if (error.name !== "NotAllowedError") {
+    //           console.error("Failed to play sound-round-4 sound:", error);
+    //         }
+    //       });
+    //       // Mark as played after attempting to play
+    //       round4SoundPlayedRef.current = true;
+    //     }
+    //   }
+    // }
 
     // Update previous round reference
     prevRoundRef.current = currentRound;
@@ -534,6 +535,7 @@ export default function StagePage() {
           <PuzzleBoard
             image={round2Meta.image}
             revealedPieces={round2Meta.revealedPieces}
+            phase={state.phase}
           />
         }
         cnvPanel={

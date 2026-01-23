@@ -1,0 +1,73 @@
+0 verbose cli /Users/tranmanhdat/.nvm/versions/node/v24.8.0/bin/node /Users/tranmanhdat/.nvm/versions/node/v24.8.0/bin/npm
+1 info using npm@11.6.0
+2 info using node@v24.8.0
+3 silly config load:file:/Users/tranmanhdat/.nvm/versions/node/v24.8.0/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/tranmanhdat/Downloads/test_LAN/magicUI/.npmrc
+5 silly config load:file:/Users/tranmanhdat/.npmrc
+6 silly config load:file:/Users/tranmanhdat/.nvm/versions/node/v24.8.0/etc/npmrc
+7 verbose title npm install @aws-sdk/client-s3
+8 verbose argv "install" "@aws-sdk/client-s3"
+9 verbose logfile logs-max:10 dir:/Users/tranmanhdat/Downloads/test_LAN/magicUI/.npm-cache/_logs/2026-01-22T09_42_57_587Z-
+10 verbose logfile /Users/tranmanhdat/Downloads/test_LAN/magicUI/.npm-cache/_logs/2026-01-22T09_42_57_587Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
+13 silly idealTree buildDeps
+14 silly fetch manifest @aws-sdk/client-s3@*
+15 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fclient-s3 cache-miss
+16 http fetch GET 200 https://registry.npmjs.org/@aws-sdk%2fclient-s3 455ms (cache miss)
+17 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fclient-s3 set size:undefined disposed:false
+18 silly placeDep ROOT @aws-sdk/client-s3@3.972.0 OK for: olympia-game-show@0.1.0 want: *
+19 silly fetch manifest @aws-crypto/sha1-browser@5.2.0
+20 silly packumentCache full:https://registry.npmjs.org/@aws-crypto%2fsha1-browser cache-miss
+21 silly fetch manifest @aws-crypto/sha256-browser@5.2.0
+22 silly packumentCache full:https://registry.npmjs.org/@aws-crypto%2fsha256-browser cache-miss
+23 silly fetch manifest @aws-crypto/sha256-js@5.2.0
+24 silly packumentCache full:https://registry.npmjs.org/@aws-crypto%2fsha256-js cache-miss
+25 silly fetch manifest @aws-sdk/core@3.972.0
+26 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fcore cache-miss
+27 silly fetch manifest @aws-sdk/credential-provider-node@3.972.0
+28 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fcredential-provider-node cache-miss
+29 silly fetch manifest @aws-sdk/middleware-bucket-endpoint@3.972.0
+30 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fmiddleware-bucket-endpoint cache-miss
+31 silly fetch manifest @aws-sdk/middleware-expect-continue@3.972.0
+32 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fmiddleware-expect-continue cache-miss
+33 http fetch GET 200 https://registry.npmjs.org/@aws-crypto%2fsha1-browser 96ms (cache miss)
+34 silly packumentCache full:https://registry.npmjs.org/@aws-crypto%2fsha1-browser set size:undefined disposed:false
+35 silly fetch manifest @aws-sdk/middleware-flexible-checksums@3.972.0
+36 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fmiddleware-flexible-checksums cache-miss
+37 http fetch GET 200 https://registry.npmjs.org/@aws-sdk%2fmiddleware-flexible-checksums 106ms (cache miss)
+38 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fmiddleware-flexible-checksums set size:undefined disposed:false
+39 silly fetch manifest @aws-sdk/middleware-host-header@3.972.0
+40 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fmiddleware-host-header cache-miss
+41 http fetch GET 200 https://registry.npmjs.org/@aws-sdk%2fmiddleware-expect-continue 354ms (cache miss)
+42 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fmiddleware-expect-continue set size:undefined disposed:false
+43 silly fetch manifest @aws-sdk/middleware-location-constraint@3.972.0
+44 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fmiddleware-location-constraint cache-miss
+45 http fetch GET 200 https://registry.npmjs.org/@aws-sdk%2fcore 379ms (cache miss)
+46 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fcore set size:undefined disposed:false
+47 silly fetch manifest @aws-sdk/middleware-logger@3.972.0
+48 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fmiddleware-logger cache-miss
+49 http fetch GET 200 https://registry.npmjs.org/@aws-sdk%2fmiddleware-host-header 370ms (cache miss)
+50 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fmiddleware-host-header set size:undefined disposed:false
+51 silly fetch manifest @aws-sdk/middleware-recursion-detection@3.972.0
+52 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fmiddleware-recursion-detection cache-miss
+53 http fetch GET 200 https://registry.npmjs.org/@aws-sdk%2fmiddleware-recursion-detection 175ms (cache miss)
+54 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fmiddleware-recursion-detection set size:undefined disposed:false
+55 silly fetch manifest @aws-sdk/middleware-sdk-s3@3.972.0
+56 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fmiddleware-sdk-s3 cache-miss
+57 http fetch GET 200 https://registry.npmjs.org/@aws-crypto%2fsha256-js 877ms (cache miss)
+58 silly packumentCache full:https://registry.npmjs.org/@aws-crypto%2fsha256-js set size:undefined disposed:false
+59 silly fetch manifest @aws-sdk/middleware-ssec@3.972.0
+60 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fmiddleware-ssec cache-miss
+61 http fetch GET 200 https://registry.npmjs.org/@aws-sdk%2fmiddleware-sdk-s3 127ms (cache miss)
+62 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fmiddleware-sdk-s3 set size:undefined disposed:false
+63 silly fetch manifest @aws-sdk/middleware-user-agent@3.972.0
+64 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fmiddleware-user-agent cache-miss
+65 http fetch GET 200 https://registry.npmjs.org/@aws-crypto%2fsha256-browser 886ms (cache miss)
+66 silly packumentCache full:https://registry.npmjs.org/@aws-crypto%2fsha256-browser set size:undefined disposed:false
+67 silly fetch manifest @aws-sdk/region-config-resolver@3.972.0
+68 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fregion-config-resolver cache-miss
+69 http fetch GET 200 https://registry.npmjs.org/@aws-sdk%2fmiddleware-bucket-endpoint 888ms (cache miss)
+70 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fmiddleware-bucket-endpoint set size:undefined disposed:false
+71 silly fetch manifest @aws-sdk/signature-v4-multi-region@3.972.0
+72 silly packumentCache full:https://registry.npmjs.org/@aws-sdk%2fsignature-v4-multi-region cache-miss
